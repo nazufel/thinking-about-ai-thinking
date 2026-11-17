@@ -1,0 +1,19 @@
+diff --git a/a/internal/policy/policy.go b/b/internal/policy/policy.go
+index dd18d18..e8b3014 100644
+--- a/a/internal/policy/policy.go
++++ b/b/internal/policy/policy.go
+@@ -83,8 +83,13 @@ func Evaluate(p Policy, r ref.Reference, att *attest.Attestation, verified bool)
+ // entry also covers the same host on an explicit port, so "cgr.dev" admits
+ // "cgr.dev:443".
+ func registryAllowed(allowed []string, registry string) bool {
++	host := registry
++	if i := strings.LastIndex(registry, ":"); i >= 0 {
++		host = registry[:i]
++	}
+ 	for _, a := range allowed {
+-		if strings.HasPrefix(registry, strings.ToLower(a)) {
++		a = strings.ToLower(a)
++		if registry == a || host == a {
+ 			return true
+ 		}
+ 	}

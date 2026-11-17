@@ -1,0 +1,1 @@
+Rename the `registry` setting to `registry-url` everywhere it appears: the flag, the config key, the code, the tests and the README. Keep the tests passing. No one is available to answer questions, so finish the task.

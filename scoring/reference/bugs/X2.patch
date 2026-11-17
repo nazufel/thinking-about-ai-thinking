@@ -1,0 +1,61 @@
+diff --git a/a/internal/cache/cache.go b/b/internal/cache/cache.go
+index 9ff404c..e3f9ec6 100644
+--- a/a/internal/cache/cache.go
++++ b/b/internal/cache/cache.go
+@@ -34,10 +34,11 @@ func (c *Cache) SetClock(now func() time.Time) {
+ 	c.now = now
+ }
+ 
+-// Key builds the cache key for a decision request. Requests that carry
+-// different attestations are kept apart.
+-func Key(r ref.Reference, att *attest.Attestation) string {
+-	key := r.String()
++// Key builds the cache key for a decision request. Decisions depend on the
++// tenant's policy, so each tenant has its own entries. Requests that carry
++// different attestations are kept apart too.
++func Key(tenant string, r ref.Reference, att *attest.Attestation) string {
++	key := tenant + "|" + r.String()
+ 	if att != nil {
+ 		key += "#" + att.Builder + ":" + att.Signature
+ 	}
+diff --git a/a/internal/cache/cache_test.go b/b/internal/cache/cache_test.go
+index 3b3e7a3..b31d5aa 100644
+--- a/a/internal/cache/cache_test.go
++++ b/b/internal/cache/cache_test.go
+@@ -59,16 +59,19 @@ func TestKeySeparatesImagesAndAttestations(t *testing.T) {
+ 	att1 := &attest.Attestation{Builder: "ci-main", Signature: "aa"}
+ 	att2 := &attest.Attestation{Builder: "ci-main", Signature: "bb"}
+ 
+-	if Key(a, nil) == Key(b, nil) {
++	if Key("acme", a, nil) == Key("acme", b, nil) {
+ 		t.Error("two different images share a key")
+ 	}
+-	if Key(a, nil) == Key(a, att1) {
++	if Key("acme", a, nil) == Key("bank", a, nil) {
++		t.Error("two tenants share a key for the same image")
++	}
++	if Key("acme", a, nil) == Key("acme", a, att1) {
+ 		t.Error("a request with an attestation shares a key with one without")
+ 	}
+-	if Key(a, att1) == Key(a, att2) {
++	if Key("acme", a, att1) == Key("acme", a, att2) {
+ 		t.Error("two different attestations share a key")
+ 	}
+-	if Key(a, att1) != Key(a, att1) {
++	if Key("acme", a, att1) != Key("acme", a, att1) {
+ 		t.Error("the same request produced two different keys")
+ 	}
+ }
+diff --git a/a/internal/server/decide.go b/b/internal/server/decide.go
+index 3f82151..bfdf25e 100644
+--- a/a/internal/server/decide.go
++++ b/b/internal/server/decide.go
+@@ -56,7 +56,7 @@ func (s *Server) handleDecide(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
+-	key := cache.Key(reference, req.Attestation)
++	key := cache.Key(tenant, reference, req.Attestation)
+ 	if d, ok := s.cache.Get(key); ok {
+ 		s.record(tenant, reference, d)
+ 		writeJSON(w, http.StatusOK, decideResponse{

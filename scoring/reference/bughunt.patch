@@ -1,0 +1,291 @@
+diff --git a/a/internal/attest/attest.go b/b/internal/attest/attest.go
+index 7f5aace..398cfc7 100644
+--- a/a/internal/attest/attest.go
++++ b/b/internal/attest/attest.go
+@@ -79,8 +79,7 @@ func (v *Verifier) Verify(a Attestation) error {
+ 	mac := hmac.New(sha256.New, key)
+ 	mac.Write(Payload(a))
+ 	want := mac.Sum(nil)
+-	// Some builders send a shortened signature, so compare the bytes received.
+-	if len(sig) > len(want) || !hmac.Equal(want[:len(sig)], sig) {
++	if !hmac.Equal(want, sig) {
+ 		return ErrBadSignature
+ 	}
+ 
+diff --git a/a/internal/cache/cache.go b/b/internal/cache/cache.go
+index 9ff404c..e3f9ec6 100644
+--- a/a/internal/cache/cache.go
++++ b/b/internal/cache/cache.go
+@@ -34,10 +34,11 @@ func (c *Cache) SetClock(now func() time.Time) {
+ 	c.now = now
+ }
+ 
+-// Key builds the cache key for a decision request. Requests that carry
+-// different attestations are kept apart.
+-func Key(r ref.Reference, att *attest.Attestation) string {
+-	key := r.String()
++// Key builds the cache key for a decision request. Decisions depend on the
++// tenant's policy, so each tenant has its own entries. Requests that carry
++// different attestations are kept apart too.
++func Key(tenant string, r ref.Reference, att *attest.Attestation) string {
++	key := tenant + "|" + r.String()
+ 	if att != nil {
+ 		key += "#" + att.Builder + ":" + att.Signature
+ 	}
+diff --git a/a/internal/cache/cache_test.go b/b/internal/cache/cache_test.go
+index 3b3e7a3..b31d5aa 100644
+--- a/a/internal/cache/cache_test.go
++++ b/b/internal/cache/cache_test.go
+@@ -59,16 +59,19 @@ func TestKeySeparatesImagesAndAttestations(t *testing.T) {
+ 	att1 := &attest.Attestation{Builder: "ci-main", Signature: "aa"}
+ 	att2 := &attest.Attestation{Builder: "ci-main", Signature: "bb"}
+ 
+-	if Key(a, nil) == Key(b, nil) {
++	if Key("acme", a, nil) == Key("acme", b, nil) {
+ 		t.Error("two different images share a key")
+ 	}
+-	if Key(a, nil) == Key(a, att1) {
++	if Key("acme", a, nil) == Key("bank", a, nil) {
++		t.Error("two tenants share a key for the same image")
++	}
++	if Key("acme", a, nil) == Key("acme", a, att1) {
+ 		t.Error("a request with an attestation shares a key with one without")
+ 	}
+-	if Key(a, att1) == Key(a, att2) {
++	if Key("acme", a, att1) == Key("acme", a, att2) {
+ 		t.Error("two different attestations share a key")
+ 	}
+-	if Key(a, att1) != Key(a, att1) {
++	if Key("acme", a, att1) != Key("acme", a, att1) {
+ 		t.Error("the same request produced two different keys")
+ 	}
+ }
+diff --git a/a/internal/logs/logs.go b/b/internal/logs/logs.go
+index cc21cf6..1fdfc5a 100644
+--- a/a/internal/logs/logs.go
++++ b/b/internal/logs/logs.go
+@@ -3,10 +3,12 @@
+ package logs
+ 
+ import (
++	"archive/tar"
++	"compress/gzip"
+ 	"errors"
+ 	"fmt"
++	"io"
+ 	"os"
+-	"os/exec"
+ 	"path/filepath"
+ 	"sort"
+ 	"strings"
+@@ -15,9 +17,25 @@ import (
+ // maxLogSize is the largest build log Read will return.
+ const maxLogSize = 5 << 20
+ 
++// maxArchiveEntries is the most entries ArchiveEntries will list.
++const maxArchiveEntries = 10000
++
+ // ErrTooLarge is returned for logs bigger than maxLogSize.
+ var ErrTooLarge = errors.New("log is too large")
+ 
++// ErrInvalidName is returned for names that are not a plain file name.
++var ErrInvalidName = errors.New("invalid name")
++
++// resolve returns the path of the file called name directly inside dir. It
++// rejects anything that is not a plain file name, so a caller cannot reach
++// outside dir.
++func resolve(dir, name string) (string, error) {
++	if name == "" || name == "." || name == ".." || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
++		return "", ErrInvalidName
++	}
++	return filepath.Join(dir, name), nil
++}
++
+ // Store reads build logs from one directory and log archives from another.
+ type Store struct {
+ 	dir        string
+@@ -47,7 +65,10 @@ func (s *Store) List() ([]string, error) {
+ 
+ // Read returns the contents of the named build log.
+ func (s *Store) Read(name string) ([]byte, error) {
+-	path := filepath.Join(s.dir, name)
++	path, err := resolve(s.dir, name)
++	if err != nil {
++		return nil, err
++	}
+ 	info, err := os.Stat(path)
+ 	if err != nil {
+ 		return nil, err
+@@ -64,15 +85,34 @@ func (s *Store) Read(name string) ([]byte, error) {
+ // ArchiveEntries lists the files inside the named log archive, which is a
+ // gzip-compressed tar file.
+ func (s *Store) ArchiveEntries(name string) ([]string, error) {
+-	path := filepath.Join(s.archiveDir, name)
+-	out, err := exec.Command("sh", "-c", "tar -tzf "+path).Output()
++	path, err := resolve(s.archiveDir, name)
+ 	if err != nil {
+-		return nil, fmt.Errorf("list archive: %w", err)
++		return nil, err
++	}
++	f, err := os.Open(path)
++	if err != nil {
++		return nil, fmt.Errorf("open archive: %w", err)
++	}
++	defer f.Close()
++	gz, err := gzip.NewReader(f)
++	if err != nil {
++		return nil, fmt.Errorf("read archive: %w", err)
+ 	}
++	defer gz.Close()
++
+ 	entries := []string{}
+-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+-		if line != "" {
+-			entries = append(entries, line)
++	tr := tar.NewReader(gz)
++	for {
++		hdr, err := tr.Next()
++		if err == io.EOF {
++			break
++		}
++		if err != nil {
++			return nil, fmt.Errorf("read archive: %w", err)
++		}
++		entries = append(entries, hdr.Name)
++		if len(entries) > maxArchiveEntries {
++			return nil, errors.New("archive has too many entries")
+ 		}
+ 	}
+ 	return entries, nil
+diff --git a/a/internal/policy/policy.go b/b/internal/policy/policy.go
+index dd18d18..2c8de39 100644
+--- a/a/internal/policy/policy.go
++++ b/b/internal/policy/policy.go
+@@ -74,6 +74,8 @@ func Evaluate(p Policy, r ref.Reference, att *attest.Attestation, verified bool)
+ 			return deny("attestation could not be verified")
+ 		case !slices.Contains(p.TrustedBuilders, att.Builder):
+ 			return deny("builder %s is not trusted", att.Builder)
++		case !r.Pinned() || att.Digest != r.Digest:
++			return deny("attestation is not for this image digest")
+ 		}
+ 	}
+ 	return Decision{Allow: true, Reason: "ok"}
+@@ -83,8 +85,13 @@ func Evaluate(p Policy, r ref.Reference, att *attest.Attestation, verified bool)
+ // entry also covers the same host on an explicit port, so "cgr.dev" admits
+ // "cgr.dev:443".
+ func registryAllowed(allowed []string, registry string) bool {
++	host := registry
++	if i := strings.LastIndex(registry, ":"); i >= 0 {
++		host = registry[:i]
++	}
+ 	for _, a := range allowed {
+-		if strings.HasPrefix(registry, strings.ToLower(a)) {
++		a = strings.ToLower(a)
++		if registry == a || host == a {
+ 			return true
+ 		}
+ 	}
+diff --git a/a/internal/server/decide.go b/b/internal/server/decide.go
+index 3f82151..cf0e2f6 100644
+--- a/a/internal/server/decide.go
++++ b/b/internal/server/decide.go
+@@ -18,8 +18,8 @@ const maxBodyBytes = 1 << 20
+ 
+ // decideRequest asks whether an image may be deployed.
+ type decideRequest struct {
+-	// Tenant is optional. Older clients send it; newer ones rely on their
+-	// token alone.
++	// Tenant is optional. Older clients send it; when present it must name
++	// the tenant the token belongs to.
+ 	Tenant      string              `json:"tenant,omitempty"`
+ 	Image       string              `json:"image"`
+ 	Attestation *attest.Attestation `json:"attestation,omitempty"`
+@@ -40,9 +40,10 @@ func (s *Server) handleDecide(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
+-	tenant := req.Tenant
+-	if tenant == "" {
+-		tenant = tenantFrom(r.Context())
++	tenant := tenantFrom(r.Context())
++	if req.Tenant != "" && req.Tenant != tenant {
++		writeError(w, http.StatusForbidden, "tenant does not match the token")
++		return
+ 	}
+ 	pol, ok := s.policies.Get(tenant)
+ 	if !ok {
+@@ -56,7 +57,7 @@ func (s *Server) handleDecide(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
+-	key := cache.Key(reference, req.Attestation)
++	key := cache.Key(tenant, reference, req.Attestation)
+ 	if d, ok := s.cache.Get(key); ok {
+ 		s.record(tenant, reference, d)
+ 		writeJSON(w, http.StatusOK, decideResponse{
+diff --git a/a/internal/server/handlers.go b/b/internal/server/handlers.go
+index 8f4c4c6..8ce8e2c 100644
+--- a/a/internal/server/handlers.go
++++ b/b/internal/server/handlers.go
+@@ -28,6 +28,9 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
+ 
+ 	data, err := s.logs.Read(name)
+ 	switch {
++	case errors.Is(err, logs.ErrInvalidName):
++		writeError(w, http.StatusBadRequest, "invalid log name")
++		return
+ 	case errors.Is(err, os.ErrNotExist):
+ 		writeError(w, http.StatusNotFound, "no such log")
+ 		return
+diff --git a/a/internal/server/server.go b/b/internal/server/server.go
+index 1225a6a..1a88e7a 100644
+--- a/a/internal/server/server.go
++++ b/b/internal/server/server.go
+@@ -71,14 +71,12 @@ func (s *Server) routes() http.Handler {
+ 	admin := http.NewServeMux()
+ 	admin.HandleFunc("GET /admin/policies", s.handleListPolicies)
+ 	admin.HandleFunc("GET /admin/policies/{tenant}", s.handleGetPolicy)
++	admin.HandleFunc("PUT /admin/policies/{tenant}", s.handlePutPolicy)
+ 	admin.HandleFunc("POST /admin/cache/flush", s.handleFlushCache)
+ 	mux.Handle("/admin/", s.adminAuth(admin))
+ 
+-	// Policy updates pushed by the deploy pipeline.
+-	mux.HandleFunc("PUT /admin/policies/{tenant}", s.handlePutPolicy)
+-
+ 	if s.cfg.Debug {
+-		mux.HandleFunc("GET /debug/config", s.handleDebugConfig)
++		mux.Handle("GET /debug/config", s.adminAuth(http.HandlerFunc(s.handleDebugConfig)))
+ 	}
+ 	return s.logRequests(mux)
+ }
+@@ -87,8 +85,27 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+ 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+ }
+ 
+-// handleDebugConfig returns the settings the server is running with. It is
+-// only registered when debug mode is on.
++// handleDebugConfig returns the settings the server is running with, with
++// every token and key blanked out. It is only registered when debug mode is
++// on, and only admins may call it.
+ func (s *Server) handleDebugConfig(w http.ResponseWriter, r *http.Request) {
+-	writeJSON(w, http.StatusOK, s.cfg)
++	writeJSON(w, http.StatusOK, redacted(s.cfg))
++}
++
++// redacted returns a copy of cfg with its secrets replaced.
++func redacted(cfg config.Config) config.Config {
++	const hidden = "[redacted]"
++	out := cfg
++	out.AdminToken = hidden
++	out.Tenants = make([]config.Tenant, len(cfg.Tenants))
++	for i, t := range cfg.Tenants {
++		t.Token = hidden
++		out.Tenants[i] = t
++	}
++	out.Builders = make([]config.Builder, len(cfg.Builders))
++	for i, b := range cfg.Builders {
++		b.Key = hidden
++		out.Builders[i] = b
++	}
++	return out
+ }

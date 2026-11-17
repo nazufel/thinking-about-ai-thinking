@@ -1,0 +1,9 @@
+# Raw transcripts and diffs can hold paths from the machine that ran them.
+results/raw/
+
+# Build output
+/gatekeeper
+*.test
+*.out
+
+.DS_Store

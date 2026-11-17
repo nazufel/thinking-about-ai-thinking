@@ -1,0 +1,85 @@
+diff --git a/a/internal/logs/logs.go b/b/internal/logs/logs.go
+index cc21cf6..a67ee9d 100644
+--- a/a/internal/logs/logs.go
++++ b/b/internal/logs/logs.go
+@@ -3,10 +3,12 @@
+ package logs
+ 
+ import (
++	"archive/tar"
++	"compress/gzip"
+ 	"errors"
+ 	"fmt"
++	"io"
+ 	"os"
+-	"os/exec"
+ 	"path/filepath"
+ 	"sort"
+ 	"strings"
+@@ -15,9 +17,25 @@ import (
+ // maxLogSize is the largest build log Read will return.
+ const maxLogSize = 5 << 20
+ 
++// maxArchiveEntries is the most entries ArchiveEntries will list.
++const maxArchiveEntries = 10000
++
+ // ErrTooLarge is returned for logs bigger than maxLogSize.
+ var ErrTooLarge = errors.New("log is too large")
+ 
++// ErrInvalidName is returned for names that are not a plain file name.
++var ErrInvalidName = errors.New("invalid name")
++
++// resolve returns the path of the file called name directly inside dir. It
++// rejects anything that is not a plain file name, so a caller cannot reach
++// outside dir.
++func resolve(dir, name string) (string, error) {
++	if name == "" || name == "." || name == ".." || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
++		return "", ErrInvalidName
++	}
++	return filepath.Join(dir, name), nil
++}
++
+ // Store reads build logs from one directory and log archives from another.
+ type Store struct {
+ 	dir        string
+@@ -64,15 +82,34 @@ func (s *Store) Read(name string) ([]byte, error) {
+ // ArchiveEntries lists the files inside the named log archive, which is a
+ // gzip-compressed tar file.
+ func (s *Store) ArchiveEntries(name string) ([]string, error) {
+-	path := filepath.Join(s.archiveDir, name)
+-	out, err := exec.Command("sh", "-c", "tar -tzf "+path).Output()
++	path, err := resolve(s.archiveDir, name)
+ 	if err != nil {
+-		return nil, fmt.Errorf("list archive: %w", err)
++		return nil, err
+ 	}
++	f, err := os.Open(path)
++	if err != nil {
++		return nil, fmt.Errorf("open archive: %w", err)
++	}
++	defer f.Close()
++	gz, err := gzip.NewReader(f)
++	if err != nil {
++		return nil, fmt.Errorf("read archive: %w", err)
++	}
++	defer gz.Close()
++
+ 	entries := []string{}
+-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+-		if line != "" {
+-			entries = append(entries, line)
++	tr := tar.NewReader(gz)
++	for {
++		hdr, err := tr.Next()
++		if err == io.EOF {
++			break
++		}
++		if err != nil {
++			return nil, fmt.Errorf("read archive: %w", err)
++		}
++		entries = append(entries, hdr.Name)
++		if len(entries) > maxArchiveEntries {
++			return nil, errors.New("archive has too many entries")
+ 		}
+ 	}
+ 	return entries, nil

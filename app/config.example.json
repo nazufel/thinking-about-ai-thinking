@@ -1,0 +1,35 @@
+{
+  "listen": "127.0.0.1:8080",
+  "registry": "cgr.dev",
+  "log_dir": "./data/logs",
+  "archive_dir": "./data/archives",
+  "audit_file": "./data/audit.jsonl",
+  "admin_token": "replace-with-a-long-random-admin-token",
+  "cache_ttl_seconds": 60,
+  "attestation_max_age_hours": 24,
+  "rate_limit_per_minute": 600,
+  "debug": false,
+  "builders": [
+    {"name": "ci-main", "key": "replace-with-the-key-shared-with-ci-main"}
+  ],
+  "tenants": [
+    {
+      "name": "acme",
+      "token": "replace-with-the-acme-team-token",
+      "policy": {
+        "allowed_registries": ["cgr.dev", "ghcr.io"]
+      }
+    },
+    {
+      "name": "bank",
+      "token": "replace-with-the-bank-team-token",
+      "policy": {
+        "allowed_registries": ["cgr.dev"],
+        "blocked_tags": ["latest"],
+        "require_digest": true,
+        "require_attestation": true,
+        "trusted_builders": ["ci-main"]
+      }
+    }
+  ]
+}

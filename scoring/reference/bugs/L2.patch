@@ -1,0 +1,18 @@
+diff --git a/a/internal/server/server.go b/b/internal/server/server.go
+index 1225a6a..4854936 100644
+--- a/a/internal/server/server.go
++++ b/b/internal/server/server.go
+@@ -71,12 +71,10 @@ func (s *Server) routes() http.Handler {
+ 	admin := http.NewServeMux()
+ 	admin.HandleFunc("GET /admin/policies", s.handleListPolicies)
+ 	admin.HandleFunc("GET /admin/policies/{tenant}", s.handleGetPolicy)
++	admin.HandleFunc("PUT /admin/policies/{tenant}", s.handlePutPolicy)
+ 	admin.HandleFunc("POST /admin/cache/flush", s.handleFlushCache)
+ 	mux.Handle("/admin/", s.adminAuth(admin))
+ 
+-	// Policy updates pushed by the deploy pipeline.
+-	mux.HandleFunc("PUT /admin/policies/{tenant}", s.handlePutPolicy)
+-
+ 	if s.cfg.Debug {
+ 		mux.HandleFunc("GET /debug/config", s.handleDebugConfig)
+ 	}

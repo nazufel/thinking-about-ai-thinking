@@ -1,0 +1,44 @@
+diff --git a/a/internal/server/server.go b/b/internal/server/server.go
+index 1225a6a..c8b0fd3 100644
+--- a/a/internal/server/server.go
++++ b/b/internal/server/server.go
+@@ -78,7 +78,7 @@ func (s *Server) routes() http.Handler {
+ 	mux.HandleFunc("PUT /admin/policies/{tenant}", s.handlePutPolicy)
+ 
+ 	if s.cfg.Debug {
+-		mux.HandleFunc("GET /debug/config", s.handleDebugConfig)
++		mux.Handle("GET /debug/config", s.adminAuth(http.HandlerFunc(s.handleDebugConfig)))
+ 	}
+ 	return s.logRequests(mux)
+ }
+@@ -87,8 +87,27 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+ 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+ }
+ 
+-// handleDebugConfig returns the settings the server is running with. It is
+-// only registered when debug mode is on.
++// handleDebugConfig returns the settings the server is running with, with
++// every token and key blanked out. It is only registered when debug mode is
++// on, and only admins may call it.
+ func (s *Server) handleDebugConfig(w http.ResponseWriter, r *http.Request) {
+-	writeJSON(w, http.StatusOK, s.cfg)
++	writeJSON(w, http.StatusOK, redacted(s.cfg))
++}
++
++// redacted returns a copy of cfg with its secrets replaced.
++func redacted(cfg config.Config) config.Config {
++	const hidden = "[redacted]"
++	out := cfg
++	out.AdminToken = hidden
++	out.Tenants = make([]config.Tenant, len(cfg.Tenants))
++	for i, t := range cfg.Tenants {
++		t.Token = hidden
++		out.Tenants[i] = t
++	}
++	out.Builders = make([]config.Builder, len(cfg.Builders))
++	for i, b := range cfg.Builders {
++		b.Key = hidden
++		out.Builders[i] = b
++	}
++	return out
+ }

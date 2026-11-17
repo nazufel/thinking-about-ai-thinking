@@ -1,0 +1,234 @@
+diff --git a/a/README.md b/b/README.md
+index 35de33e..ea4271c 100644
+--- a/a/README.md
++++ b/b/README.md
+@@ -26,7 +26,7 @@ Run the tests with `go test ./...`.
+ | --- | --- |
+ | `-config` | Path to the configuration file. Default `config.json`. |
+ | `-listen` | Address to listen on. Overrides the configuration file. |
+-| `-registry` | Registry assumed for images that do not name one. Overrides the configuration file. |
++| `-registry-url` | Registry assumed for images that do not name one. Overrides the configuration file. |
+ | `-debug` | Enable the debug endpoints. Overrides the configuration file. |
+ 
+ ## Configuration
+@@ -37,7 +37,7 @@ The configuration file is JSON. Unknown keys are rejected. See
+ | Key | Meaning |
+ | --- | --- |
+ | `listen` | Address the server binds to. Default `127.0.0.1:8080`. |
+-| `registry` | Registry assumed for image references that do not name one. Default `cgr.dev`. |
++| `registry-url` | Registry assumed for image references that do not name one. Default `cgr.dev`. |
+ | `log_dir` | Directory holding build logs (`*.log`). |
+ | `archive_dir` | Directory holding log archives (`*.tar.gz`). |
+ | `audit_file` | Optional. File that receives every decision as a line of JSON. |
+@@ -49,7 +49,7 @@ The configuration file is JSON. Unknown keys are rejected. See
+ | `builders` | Build systems whose attestations are verified. Each has a `name` and a `key`. |
+ | `tenants` | Teams that may ask for decisions. Each has a `name`, a `token` and a `policy`. |
+ 
+-For example, with `"registry": "cgr.dev"` the reference `chainguard/nginx:1.27`
++For example, with `"registry-url": "cgr.dev"` the reference `chainguard/nginx:1.27`
+ is read as `cgr.dev/chainguard/nginx:1.27`.
+ 
+ ### Policy
+diff --git a/a/cmd/gatekeeper/main.go b/b/cmd/gatekeeper/main.go
+index dc14b6b..e225cec 100644
+--- a/a/cmd/gatekeeper/main.go
++++ b/b/cmd/gatekeeper/main.go
+@@ -26,10 +26,10 @@ func main() {
+ 
+ // options are the command-line settings.
+ type options struct {
+-	configPath string
+-	listen     string
+-	registry   string
+-	debug      bool
++	configPath  string
++	listen      string
++	registryURL string
++	debug       bool
+ }
+ 
+ // parseFlags reads the command line. It returns flag.ErrHelp when the user
+@@ -40,7 +40,7 @@ func parseFlags(args []string, out io.Writer) (options, error) {
+ 	fs.SetOutput(out)
+ 	fs.StringVar(&o.configPath, "config", "config.json", "path to the configuration file")
+ 	fs.StringVar(&o.listen, "listen", "", "address to listen on (overrides the configuration file)")
+-	fs.StringVar(&o.registry, "registry", "", "registry assumed for images that do not name one (overrides the configuration file)")
++	fs.StringVar(&o.registryURL, "registry-url", "", "registry assumed for images that do not name one (overrides the configuration file)")
+ 	fs.BoolVar(&o.debug, "debug", false, "enable the debug endpoints (overrides the configuration file)")
+ 	if err := fs.Parse(args); err != nil {
+ 		return options{}, err
+@@ -61,8 +61,8 @@ func loadConfig(o options) (config.Config, error) {
+ 	if o.listen != "" {
+ 		cfg.Listen = o.listen
+ 	}
+-	if o.registry != "" {
+-		cfg.Registry = o.registry
++	if o.registryURL != "" {
++		cfg.RegistryURL = o.registryURL
+ 	}
+ 	if o.debug {
+ 		cfg.Debug = true
+diff --git a/a/cmd/gatekeeper/main_test.go b/b/cmd/gatekeeper/main_test.go
+index 56b94ac..df411a6 100644
+--- a/a/cmd/gatekeeper/main_test.go
++++ b/b/cmd/gatekeeper/main_test.go
+@@ -19,11 +19,11 @@ func writeConfig(t *testing.T, body string) string {
+ }
+ 
+ func TestParseFlags(t *testing.T) {
+-	o, err := parseFlags([]string{"-config", "/etc/gatekeeper.json", "-listen", ":9000", "-registry", "ghcr.io", "-debug"}, io.Discard)
++	o, err := parseFlags([]string{"-config", "/etc/gatekeeper.json", "-listen", ":9000", "-registry-url", "ghcr.io", "-debug"}, io.Discard)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	want := options{configPath: "/etc/gatekeeper.json", listen: ":9000", registry: "ghcr.io", debug: true}
++	want := options{configPath: "/etc/gatekeeper.json", listen: ":9000", registryURL: "ghcr.io", debug: true}
+ 	if o != want {
+ 		t.Errorf("parseFlags = %+v, want %+v", o, want)
+ 	}
+@@ -42,25 +42,25 @@ func TestParseFlagsRejectsUnknown(t *testing.T) {
+ }
+ 
+ func TestLoadConfigAppliesOverrides(t *testing.T) {
+-	path := writeConfig(t, `{"listen": "127.0.0.1:8080", "registry": "cgr.dev"}`)
++	path := writeConfig(t, `{"listen": "127.0.0.1:8080", "registry-url": "cgr.dev"}`)
+ 
+ 	cfg, err := loadConfig(options{configPath: path})
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if cfg.Listen != "127.0.0.1:8080" || cfg.Registry != "cgr.dev" || cfg.Debug {
++	if cfg.Listen != "127.0.0.1:8080" || cfg.RegistryURL != "cgr.dev" || cfg.Debug {
+ 		t.Errorf("without overrides the config was %+v", cfg)
+ 	}
+ 
+-	cfg, err = loadConfig(options{configPath: path, listen: ":9000", registry: "ghcr.io", debug: true})
++	cfg, err = loadConfig(options{configPath: path, listen: ":9000", registryURL: "ghcr.io", debug: true})
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	if cfg.Listen != ":9000" {
+ 		t.Errorf("Listen = %q, want the -listen override", cfg.Listen)
+ 	}
+-	if cfg.Registry != "ghcr.io" {
+-		t.Errorf("Registry = %q, want the -registry override", cfg.Registry)
++	if cfg.RegistryURL != "ghcr.io" {
++		t.Errorf("RegistryURL = %q, want the -registry-url override", cfg.RegistryURL)
+ 	}
+ 	if !cfg.Debug {
+ 		t.Error("-debug did not turn debug mode on")
+@@ -71,7 +71,7 @@ func TestRunReportsBadConfig(t *testing.T) {
+ 	if err := run([]string{"-config", filepath.Join(t.TempDir(), "missing.json")}, io.Discard); err == nil {
+ 		t.Error("run started without a configuration file")
+ 	}
+-	path := writeConfig(t, `{"registry": ""}`)
++	path := writeConfig(t, `{"registry-url": ""}`)
+ 	if err := run([]string{"-config", path}, io.Discard); err == nil {
+ 		t.Error("run started with an invalid configuration")
+ 	}
+diff --git a/a/config.example.json b/b/config.example.json
+index e9bb1c3..21c44cb 100644
+--- a/a/config.example.json
++++ b/b/config.example.json
+@@ -1,6 +1,6 @@
+ {
+   "listen": "127.0.0.1:8080",
+-  "registry": "cgr.dev",
++  "registry-url": "cgr.dev",
+   "log_dir": "./data/logs",
+   "archive_dir": "./data/archives",
+   "audit_file": "./data/audit.jsonl",
+diff --git a/a/internal/config/config.go b/b/internal/config/config.go
+index 6c7469d..421bcd2 100644
+--- a/a/internal/config/config.go
++++ b/b/internal/config/config.go
+@@ -28,9 +28,9 @@ type Builder struct {
+ type Config struct {
+ 	// Listen is the address the HTTP server binds to.
+ 	Listen string `json:"listen"`
+-	// Registry is the registry assumed for image references that do not
++	// RegistryURL is the registry assumed for image references that do not
+ 	// name one.
+-	Registry string `json:"registry"`
++	RegistryURL string `json:"registry-url"`
+ 	// LogDir holds the build logs served by the logs endpoint.
+ 	LogDir string `json:"log_dir"`
+ 	// ArchiveDir holds the log archives listed by the archives endpoint.
+@@ -60,7 +60,7 @@ type Config struct {
+ func Default() Config {
+ 	return Config{
+ 		Listen:                 "127.0.0.1:8080",
+-		Registry:               "cgr.dev",
++		RegistryURL:            "cgr.dev",
+ 		CacheTTLSeconds:        60,
+ 		AttestationMaxAgeHours: 24,
+ 	}
+@@ -89,8 +89,8 @@ func (c Config) Validate() error {
+ 	if c.Listen == "" {
+ 		return errors.New("listen must be set")
+ 	}
+-	if c.Registry == "" {
+-		return errors.New("registry must be set")
++	if c.RegistryURL == "" {
++		return errors.New("registry-url must be set")
+ 	}
+ 	if c.LogDir == "" {
+ 		return errors.New("log_dir must be set")
+diff --git a/a/internal/config/config_test.go b/b/internal/config/config_test.go
+index f918f56..7c25221 100644
+--- a/a/internal/config/config_test.go
++++ b/b/internal/config/config_test.go
+@@ -40,25 +40,25 @@ func TestLoadAppliesDefaults(t *testing.T) {
+ 	if cfg.Listen != "127.0.0.1:8080" {
+ 		t.Errorf("Listen = %q, want the default", cfg.Listen)
+ 	}
+-	if cfg.Registry != "cgr.dev" {
+-		t.Errorf("Registry = %q, want the default cgr.dev", cfg.Registry)
++	if cfg.RegistryURL != "cgr.dev" {
++		t.Errorf("RegistryURL = %q, want the default cgr.dev", cfg.RegistryURL)
+ 	}
+ 	if err := cfg.Validate(); err != nil {
+ 		t.Errorf("Validate: %v", err)
+ 	}
+ }
+ 
+-func TestLoadReadsRegistry(t *testing.T) {
++func TestLoadReadsRegistryURL(t *testing.T) {
+ 	path := filepath.Join(t.TempDir(), "config.json")
+-	if err := os.WriteFile(path, []byte(`{"registry": "ghcr.io"}`), 0o600); err != nil {
++	if err := os.WriteFile(path, []byte(`{"registry-url": "ghcr.io"}`), 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	cfg, err := Load(path)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if cfg.Registry != "ghcr.io" {
+-		t.Errorf("Registry = %q, want ghcr.io", cfg.Registry)
++	if cfg.RegistryURL != "ghcr.io" {
++		t.Errorf("RegistryURL = %q, want ghcr.io", cfg.RegistryURL)
+ 	}
+ }
+ 
+@@ -93,7 +93,7 @@ func TestValidate(t *testing.T) {
+ 		want   string
+ 	}{
+ 		{"no listen address", func(c *Config) { c.Listen = "" }, "listen"},
+-		{"no registry", func(c *Config) { c.Registry = "" }, "registry"},
++		{"no registry", func(c *Config) { c.RegistryURL = "" }, "registry-url"},
+ 		{"no admin token", func(c *Config) { c.AdminToken = "" }, "admin_token"},
+ 		{"no tenants", func(c *Config) { c.Tenants = nil }, "tenant"},
+ 		{"duplicate tenant", func(c *Config) { c.Tenants = append(c.Tenants, c.Tenants[0]) }, "twice"},
+diff --git a/a/internal/server/decide.go b/b/internal/server/decide.go
+index 3f82151..2956eb8 100644
+--- a/a/internal/server/decide.go
++++ b/b/internal/server/decide.go
+@@ -50,7 +50,7 @@ func (s *Server) handleDecide(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
+-	reference, err := ref.Parse(req.Image, s.cfg.Registry)
++	reference, err := ref.Parse(req.Image, s.cfg.RegistryURL)
+ 	if err != nil {
+ 		writeError(w, http.StatusBadRequest, err.Error())
+ 		return

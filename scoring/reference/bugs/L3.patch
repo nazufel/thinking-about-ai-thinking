@@ -1,0 +1,14 @@
+diff --git a/a/internal/attest/attest.go b/b/internal/attest/attest.go
+index 7f5aace..398cfc7 100644
+--- a/a/internal/attest/attest.go
++++ b/b/internal/attest/attest.go
+@@ -79,8 +79,7 @@ func (v *Verifier) Verify(a Attestation) error {
+ 	mac := hmac.New(sha256.New, key)
+ 	mac.Write(Payload(a))
+ 	want := mac.Sum(nil)
+-	// Some builders send a shortened signature, so compare the bytes received.
+-	if len(sig) > len(want) || !hmac.Equal(want[:len(sig)], sig) {
++	if !hmac.Equal(want, sig) {
+ 		return ErrBadSignature
+ 	}
+ 

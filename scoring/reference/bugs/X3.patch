@@ -1,0 +1,29 @@
+diff --git a/a/internal/server/decide.go b/b/internal/server/decide.go
+index 3f82151..e5a52e6 100644
+--- a/a/internal/server/decide.go
++++ b/b/internal/server/decide.go
+@@ -18,8 +18,8 @@ const maxBodyBytes = 1 << 20
+ 
+ // decideRequest asks whether an image may be deployed.
+ type decideRequest struct {
+-	// Tenant is optional. Older clients send it; newer ones rely on their
+-	// token alone.
++	// Tenant is optional. Older clients send it; when present it must name
++	// the tenant the token belongs to.
+ 	Tenant      string              `json:"tenant,omitempty"`
+ 	Image       string              `json:"image"`
+ 	Attestation *attest.Attestation `json:"attestation,omitempty"`
+@@ -40,9 +40,10 @@ func (s *Server) handleDecide(w http.ResponseWriter, r *http.Request) {
+ 		return
+ 	}
+ 
+-	tenant := req.Tenant
+-	if tenant == "" {
+-		tenant = tenantFrom(r.Context())
++	tenant := tenantFrom(r.Context())
++	if req.Tenant != "" && req.Tenant != tenant {
++		writeError(w, http.StatusForbidden, "tenant does not match the token")
++		return
+ 	}
+ 	pol, ok := s.policies.Get(tenant)
+ 	if !ok {

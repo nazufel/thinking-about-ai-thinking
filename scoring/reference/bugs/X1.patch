@@ -1,0 +1,13 @@
+diff --git a/a/internal/policy/policy.go b/b/internal/policy/policy.go
+index dd18d18..fa85ef6 100644
+--- a/a/internal/policy/policy.go
++++ b/b/internal/policy/policy.go
+@@ -74,6 +74,8 @@ func Evaluate(p Policy, r ref.Reference, att *attest.Attestation, verified bool)
+ 			return deny("attestation could not be verified")
+ 		case !slices.Contains(p.TrustedBuilders, att.Builder):
+ 			return deny("builder %s is not trusted", att.Builder)
++		case !r.Pinned() || att.Digest != r.Digest:
++			return deny("attestation is not for this image digest")
+ 		}
+ 	}
+ 	return Decision{Allow: true, Reason: "ok"}
