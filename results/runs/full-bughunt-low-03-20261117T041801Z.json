@@ -1,0 +1,46 @@
+{
+  "id": "full-bughunt-low-03-20261117T041801Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "low",
+  "trial": 3,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:18:01.745919Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.05,
+  "cost_usd": 0.353661,
+  "turns": 10,
+  "output_tokens": 4719,
+  "tool_calls": 9,
+  "tool_calls_by_name": {
+    "Bash": 9
+  },
+  "ran_tests": true,
+  "thinking_blocks": 3,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 5,
+    "lines_added": 58,
+    "lines_removed": 14
+  },
+  "final_report": "I found and fixed nine vulnerabilities. `go vet` is clean and all existing tests pass. The command-line flags, the config file format and the HTTP API routes are unchanged. I didn't write any new tests or exploit code.\n\n1. **Anyone could replace a tenant's policy without logging in** – `internal/server/server.go:76`. `PUT /admin/policies/{tenant}` was registered outside the admin token check. It now goes through the same check as the other admin routes.\n2. **One tenant could act as another** – `internal/server/decide.go:44-50`. A `tenant` field in the `/v1/decide` body replaced the tenant identified by the token, so a caller could use someone else's policy and write to their audit trail. The token now decides the tenant. If the body names a different tenant, the request is rejected with 403.\n3. **Cached decisions crossed tenants** – `internal/server/decide.go:62`. The cache key didn't include the tenant, so one tenant could be given a decision made under another tenant's policy. The key now includes the tenant.\n4. **Shortened signatures were accepted** – `internal/attest/attest.go:82`. A signature of zero or one byte passed the check, which made forging an attestation trivial. The full HMAC must now match.\n5. **An attestation for one image could approve another** – `internal/policy/policy.go:77-78`. The attestation's digest was never compared with the image. When attestation is required, the image must now be pinned by digest and that digest must match the attestation.\n6. **The registry allowlist matched by prefix** – `internal/policy/policy.go:85-97`. Allowing `cgr.dev` also allowed hosts like `cgr.dev.evil.com`. Now only an exact match or the same host with a port (`cgr.dev:443`) is accepted.\n7. **The archives endpoint allowed command injection and path traversal** – `internal/logs/logs.go:66-81`. The archive name was put into a shell command run with `sh -c`. `tar` is now run directly with separate arguments, and the name must be a plain file name (no path separators, no `..`, no leading `-`) that points to a regular file.\n8. **The logs endpoint allowed path traversal** – `internal/logs/logs.go:49-58`. A name like `../...` could read any file on the server. The same name check applies here, and symlinks are no longer followed.\n9. **The debug endpoint leaked secrets** – `internal/server/server.go:90-104`. `/debug/config` returned the admin token, every tenant token and every builder key. These are now replaced with `[redacted]`.\n\nTwo of these fixes change behaviour that callers might notice:\n- **Fix 2:** older clients that send a `tenant` field different from their token's tenant now get a 403 instead of a decision.\n- **Fix 5:** tenants that require attestation now also need images pinned by digest. A tag-only image with an attestation is denied."
+}

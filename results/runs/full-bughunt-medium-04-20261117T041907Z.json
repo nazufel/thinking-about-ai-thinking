@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-medium-04-20261117T041907Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "medium",
+  "trial": 4,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:19:07.526262Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.86,
+  "cost_usd": 0.6075982,
+  "turns": 12,
+  "output_tokens": 10902,
+  "tool_calls": 11,
+  "tool_calls_by_name": {
+    "Bash": 10,
+    "Read": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 7,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 134,
+    "lines_removed": 25
+  },
+  "final_report": "I found and fixed 11 security problems. `go vet` and `gofmt` are clean and `go test ./...` passes. I didn't change the flags, the config file format or the routes, and I didn't add any tests.\n\n**Critical**\n1. **Anyone could change a tenant's policy without a token**: `internal/server/server.go:76`. `PUT /admin/policies/{tenant}` was registered on the main router, outside the admin-token check, so anyone could replace a policy. It now goes through the admin token check like the other admin endpoints.\n2. **Command injection when listing archives**: `internal/logs/logs.go:119-150`. The archive name was pasted into `sh -c \"tar -tzf ...\"`, so a name like `x;cmd;.tar.gz` ran `cmd`. It now uses Go's built-in tar and gzip readers, and doesn't start a shell at all.\n3. **Empty or shortened attestation signatures were accepted**: `internal/attest/attest.go:84`. The check compared only as many bytes as the caller sent, so an empty `signature` passed. It now requires the full signature.\n4. **A tenant could use another tenant's policy**: `internal/server/decide.go:44-50`. The `tenant` field in the request body overrode the tenant identified by the token. The token now decides the tenant. A body `tenant` that names a different tenant gets a `403`; older clients that send their own tenant name still work.\n\n**High**\n5. **Decisions were cached across tenants**: `internal/server/decide.go:64`. The cache key left out the tenant, so one tenant's \"allow\" could be served to a tenant with a stricter policy. The key now includes the tenant.\n6. **Path traversal in `GET /v1/logs?name=`**: `internal/logs/logs.go:36-71` and `:97`. Names like `../../etc/passwd` could read any file. Names must now be plain `*.log` file names, and symlinks and non-regular files are refused. The read is also capped at the size limit.\n7. **Path traversal in `GET /v1/archives`**: `internal/logs/logs.go:122`. Same name and file checks as in #6.\n8. **Registry allowlist used a prefix match**: `internal/policy/policy.go:88-95`. Allowing `cgr.dev` also allowed `cgr.dev.evil.com`. A registry now has to match exactly or as `host:port`, which is what the README describes.\n9. **An attestation for one image could approve another**: `internal/policy/policy.go:77-78`. Nothing checked that the attestation's digest matched the requested image. A tenant that requires attestations now needs a pinned image whose digest matches the attestation's.\n10. **Secrets exposed at `/debug/config`**: `internal/server/server.go:92-117`. It returned the admin token, every tenant token and every builder key. These now show as `[redacted]`; the response shape is unchanged.\n\n**Medium**\n11. **Cache entries could outlive their attestation**:\n    - `internal/cache/cache.go:43`: the cache key now covers every attestation field, not just builder and signature.\n    - `internal/server/decide.go:86`: decisions that rely on an attestation are no longer cached, so a cached \"allow\" can't outlast the attestation's validity window.\n    - `internal/logs/logs.go:23-27, 135-146`: archive listing is also capped at 10,000 entries and 1 GiB of decompressed data, so a hostile archive can't exhaust memory or CPU.\n\n**Behaviour changes callers might notice:**\n- **Short signatures:** builders that sent shortened signatures will now be rejected. The old code allowed this on purpose, but it is what made the bypass in #3 possible.\n- **Mismatched `tenant` field:** clients that send a `tenant` naming a different tenant now get a `403`.\n- **Log names:** unusual names, such as ones starting with `.`, now return `404`."
+}

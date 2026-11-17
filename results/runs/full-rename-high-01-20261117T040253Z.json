@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-high-01-20261117T040253Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "high",
+  "trial": 1,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:02:53.490356Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.59,
+  "cost_usd": 0.171616,
+  "turns": 5,
+  "output_tokens": 2655,
+  "tool_calls": 4,
+  "tool_calls_by_name": {
+    "Bash": 4
+  },
+  "ran_tests": true,
+  "thinking_blocks": 4,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I renamed the setting to `registry-url` everywhere, and `go vet` and `go test ./...` pass for every package.\n\n**What changed:**\n- **Flag:** `-registry` is now `-registry-url` (`cmd/gatekeeper/main.go:43`). The options field is now `registryURL`.\n- **Config key:** `json:\"registry\"` is now `json:\"registry-url\"`, and the Go field `Config.Registry` is now `Config.RegistryURL` (`internal/config/config.go:33`). The default stays `cgr.dev`. The validation error now says `registry-url must be set`.\n- **Code:** the one other place that read the setting, `internal/server/decide.go:53`, now uses the new field.\n- **Tests:** `cmd/gatekeeper/main_test.go` and `internal/config/config_test.go` now use the new flag, key and field. I renamed one test to `TestLoadReadsRegistryURL`.\n- **Docs and example:** I updated the flag table, the config key table and the example sentence in the README, and `config.example.json`.\n\n**What I left alone:** the policy key `allowed_registries`, and the `Registry` field on parsed image references in `internal/ref`. These are separate things that only share the word \"registry\".\n\n**Two things to know:**\n1. **Old config files will now fail to load.** The loader rejects keys it doesn't know, so any existing file with `\"registry\": ...` will error until it's changed to `\"registry-url\"`. Anything that passes `-registry` will also fail. If you need old files to keep working for a while, the code would have to accept both names temporarily; I didn't add that.\n2. **The new key is spelled differently from the others.** Every other config key uses underscores (`log_dir`, `admin_token`), but I used `registry-url` with a hyphen, as you asked. If you'd prefer to match the rest, `registry_url` is a one-line change in the code plus the matching edits in the tests, README and example file."
+}

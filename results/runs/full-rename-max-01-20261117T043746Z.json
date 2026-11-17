@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-max-01-20261117T043746Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "max",
+  "trial": 1,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:37:46.824813Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 5.41,
+  "cost_usd": 1.2867206,
+  "turns": 16,
+  "output_tokens": 32717,
+  "tool_calls": 15,
+  "tool_calls_by_name": {
+    "Bash": 15
+  },
+  "ran_tests": true,
+  "thinking_blocks": 16,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I've renamed `registry` to `registry-url` in the flag, the config key, the code, the tests, `config.example.json` and the README. `gofmt` and `go vet` are clean and all 10 packages pass with `go test -count=1 ./...`.\n\n## What changed\n- **Flag:** `-registry` is now `-registry-url`.\n- **Config key:** `\"registry\"` is now `\"registry-url\"`, including in `config.example.json`. The validation error now reads `registry-url must be set`.\n- **Code:** Go names can't contain hyphens, so `Config.Registry` became `Config.RegistryURL` and `options.registry` became `options.registryURL`.\n- **Tests:** they now use the new names. The validation test now checks that the error mentions `registry-url`; the old check for `registry` would have passed with either name.\n- **Left alone on purpose:** other code that says \"registry\" but isn't this setting. That's the image-reference parser in `internal/ref`, the `allowed_registries` policy, and their tests.\n\n## Checked with the built binary\n- `-registry-url ghcr.io` resolves `chainguard/nginx:1.27` to `ghcr.io/...`. Without the flag, the config key's `cgr.dev` is used.\n- `-h` lists `-registry-url`.\n- **The old names now stop the server from starting.** `-registry` gives \"flag provided but not defined\". A config file with `\"registry\"` gives `unknown field \"registry\"`. Both exit with code 1 rather than quietly falling back to `cgr.dev`. Existing config files and deploy scripts need updating before this ships. I didn't keep the old names as aliases, since you asked for the rename everywhere.\n- The `/debug/config` output now shows the key as `registry-url`.\n\n## Decisions for you\n- **Hyphen vs underscore:** I used `registry-url` for the config key as you wrote it, but every other key uses underscores (`log_dir`, `admin_token`). If you'd rather have `registry_url`, it's a one-line change in `internal/config/config.go:33` plus the docs and tests.\n- **The value is still a bare host, not a URL.** The new name invites values like `https://cgr.dev`. Startup only checks that the value isn't empty, so that would start fine. Then every image without a registry in its name would be rejected with a 400 \"bad registry\". I haven't run that case, but the parser can't accept a `/` in the host. A startup format check would prevent it; I didn't add one because it goes beyond a rename.\n\n## Security problems I found along the way (not fixed)\nThese have nothing to do with the rename. I confirmed each one against a throwaway local server:\n1. **Anyone can replace a team's policy without a token.** `PUT /admin/policies/{tenant}` returned 204 with no token, because it's registered outside the admin token check (`internal/server/server.go:78`). The README says every `/admin` endpoint needs the admin token.\n2. **A team can use another team's policy.** Sending `\"tenant\": \"acme\"` in a decide request gets acme's policy applied. My strict \"bank\" team got an allow its own policy denies (`internal/server/decide.go:43`).\n3. **Cached decisions are shared between teams.** The cache key leaves out the team (`internal/cache/cache.go:39`). After acme was allowed an unpinned image, bank, which requires pinned images, got `allow: true, cached: true` for the same image.\n4. **The registry allowlist matches by prefix.** An allowlist entry of `cgr.dev` admits `cgr.dev.evil.example` (`internal/policy/policy.go:87`).\n5. **The debug endpoint leaks secrets.** `/debug/config` needs no token and returns the admin token, team tokens and builder keys. It only exists in debug mode, which is off by default.\n\nThe first three let a team get past its own policy. I'd fix them next and can do that as a follow-up."
+}

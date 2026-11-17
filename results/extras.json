@@ -1,0 +1,146 @@
+{
+  "list_hash": "1ce469a2416a",
+  "method": "Each diff was graded twice by Claude Fable 5.2 agents working from the anonymised diffs, the fixture before and after each diff, and the list's table, with run IDs and effort levels hidden. Their transcripts show that none opened the key, the run records or another grader's grades; two of the four also read the script that built the grading packet, which shows this repo's name and the word effort. The two passes agreed on all 200 cells (100 credits), so nothing was adjudicated. The session that ran the sweep then checked the five U2 and four U4 credits against the code and changed nothing. No person reviewed the grades.",
+  "runs": {
+    "full-bughunt-high-01-20261117T051629Z": {
+      "U1": "ArchiveEntries accepts only a plain *.tar.gz file name (validName: no separators, filepath.IsLocal, Base(name) == name) and opens it through openRegular, which requires a regular file found by Lstat: internal/logs/logs.go:124-131, 60-68 and 73-81.",
+      "U10": "Read accepts only a plain *.log name and opens through openRegular, which uses os.Lstat and returns ErrNotExist unless the name is a regular file, then confirms with os.SameFile: internal/logs/logs.go:101-104, 75-81 and 92-95.",
+      "U3": "maxEntries = 10000; when a new key arrives at the limit, Put drops expired entries and, if still full, does not store the decision: internal/cache/cache.go:17 and 82-94.",
+      "U9": "the tar reader sits on io.LimitReader(gz, 1\u003c\u003c30) and the listing fails once it holds 100000 entries: internal/logs/logs.go:22-25, 140 and 150-152."
+    },
+    "full-bughunt-high-02-20261117T055313Z": {
+      "U1": "ArchiveEntries opens the archive through openRegular, which accepts only a plain *.tar.gz file name (validName: no separators, Base(name) == name, filepath.IsLocal) and a regular file found by Lstat: internal/logs/logs.go:123-127, 58-66 and 71-82.",
+      "U10": "Read opens through openRegular, which uses os.Lstat and returns ErrNotExist unless the name is a regular file, then confirms with os.SameFile: internal/logs/logs.go:102-103, 76-82 and 94-97.",
+      "U3": "maxEntries = 10000; when a new key arrives at the limit, Put drops expired entries and, if still full, empties the map: internal/cache/cache.go:17 and 83-94.",
+      "U8": "the attestation is verified on every request before the cache lookup, and a hit is served only when the request has no attestation or the attestation verified just now; an expired one falls through to a fresh evaluation: internal/server/decide.go:67-75 and 80-86.",
+      "U9": "the tar reader sits on io.LimitReader(gz, 1\u003c\u003c30) and the listing fails once it holds 10000 entries: internal/logs/logs.go:21-24, 136 and 146-148."
+    },
+    "full-bughunt-high-03-20261117T055544Z": {
+      "U1": "ArchiveEntries opens the archive through openInDir, which accepts only a plain *.tar.gz file name (no separators, not '.' or '..', name == Base(name)) and a regular file found by Lstat: internal/logs/logs.go:113-117 and 30-44.",
+      "U10": "Read opens through openInDir, which uses os.Lstat and returns ErrNotExist unless the name is a regular file, then confirms with os.SameFile: internal/logs/logs.go:92-93, 38-44 and 56-59.",
+      "U3": "maxEntries = 10000; when a new key arrives at the limit, Put drops expired entries and, if still full, empties the map: internal/cache/cache.go:40 and 86-98.",
+      "U5": "Validate returns an error when a tenant's token equals AdminToken: internal/config/config.go:134-136.",
+      "U8": "the attestation is verified on every request before the cache lookup, and a request whose attestation fails (including expiry) is keyed apart with a '#unverified' suffix, so it can never hit the approval cached while the attestation was valid: internal/server/decide.go:66-74 and 78-88.",
+      "U9": "the archive is read in-process and the listing fails once it holds 100000 entries: internal/logs/logs.go:21 and 136-138."
+    },
+    "full-bughunt-high-04-20261117T051001Z": {
+      "U1": "ArchiveEntries opens through openInDir (internal/logs/logs.go:115). openInDir returns ErrNotExist for '.', '..', any name with a slash, backslash or NUL, any name that differs from its filepath.Base or fails filepath.IsLocal, or lacks the .tar.gz suffix (logs.go:60-66).",
+      "U10": "Read opens through openInDir (internal/logs/logs.go:94). openInDir takes only a plain .log file name, Lstats it and returns ErrNotExist unless it is a regular file, which refuses symbolic links (logs.go:60-74), then checks IsRegular and os.SameFile again after the open (logs.go:79-88).",
+      "U3": "Put caps the map at maxEntries = 10000 (internal/cache/cache.go:40): when a new key arrives at the cap it deletes expired entries and, if still full, resets the map (cache.go:80-90).",
+      "U9": "ArchiveEntries reads the archive with archive/tar over io.LimitReader(zr, maxArchiveBytes), 4 GiB of decompressed data (internal/logs/logs.go:127), and errors once it holds maxArchiveEntries = 100000 names (logs.go:137-139). Limits are defined at logs.go:52-55."
+    },
+    "full-bughunt-high-05-20261117T055804Z": {
+      "U1": "ArchiveEntries opens through openInDir (internal/logs/logs.go:118). openInDir returns ErrNotExist for '.', '..', any name with a slash, backslash or NUL, any name that differs from its filepath.Base or fails filepath.IsLocal, or lacks the .tar.gz suffix (logs.go:34-40).",
+      "U10": "Read opens through openInDir (internal/logs/logs.go:95). openInDir takes only a plain .log file name, Lstats it and returns ErrNotExist unless it is a regular file, which refuses symbolic links (logs.go:34-48), then checks IsRegular and os.SameFile again after the open (logs.go:53-62).",
+      "U3": "PutUntil caps the map at maxEntries = 10000 (internal/cache/cache.go:41): when a new key arrives at the cap it deletes expired entries and, if still full, resets the map (cache.go:100-110). Put delegates to PutUntil (cache.go:86-88).",
+      "U5": "Validate returns 'tenant uses the admin token' when t.Token == c.AdminToken (internal/config/config.go:134-136).",
+      "U8": "When the attestation verified, handleDecide sets deadline = issued_at + AttestationMaxAge and stores with PutUntil (internal/server/decide.go:83-88). PutUntil caps the entry's expiry at the deadline and stores nothing if that is already past (internal/cache/cache.go:111-118).",
+      "U9": "ArchiveEntries reads the archive with archive/tar over io.LimitReader(gz, maxArchiveBytes), 1 GiB of decompressed data (internal/logs/logs.go:128), and errors once it holds maxArchiveEntries = 100000 names (logs.go:138-140). Limits are defined at logs.go:21, 25."
+    },
+    "full-bughunt-low-01-20261117T053447Z": {
+      "U1": "ArchiveEntries rejects any name with a separator or that is '.' or '..' (safeName), so the joined path stays in the archive directory, and Lstat requires a regular file there: internal/logs/logs.go:70-80 and 96-101.",
+      "U10": "Read accepts only a plain file name, stats it with os.Lstat and returns ErrNotExist unless it is a regular file, so a symbolic link is refused: internal/logs/logs.go:50-60."
+    },
+    "full-bughunt-low-02-20261117T041700Z": {
+      "U1": "ArchiveEntries rejects any name with a separator, '.' or '..' or that differs from its base name (safeName), so the joined path stays in the archive directory, and Lstat requires a regular file there: internal/logs/logs.go:70-80 and 96-104.",
+      "U10": "Read accepts only a plain file name, stats it with os.Lstat and returns ErrNotExist unless it is a regular file, so a symbolic link is refused: internal/logs/logs.go:50-60."
+    },
+    "full-bughunt-low-03-20261117T041801Z": {
+      "U1": "ArchiveEntries returns ErrNotExist unless safeName(name) (internal/logs/logs.go:70-72). safeName rejects '.', '..', a leading dash, any slash, backslash or NUL, and any name that differs from its filepath.Base (logs.go:96-104), so the joined path stays directly inside archiveDir.",
+      "U10": "Read rejects names that are not a plain file name (safeName, internal/logs/logs.go:50-52, 96-104), then calls os.Lstat in place of os.Stat and returns ErrNotExist unless the file is regular, so a symbolic link is refused (logs.go:54-60)."
+    },
+    "full-bughunt-low-04-20261117T044313Z": {
+      "U1": "ArchiveEntries resolves the name with safePath (internal/logs/logs.go:70-73). safePath accepts only a plain file name: name == filepath.Base(name), filepath.IsLocal, no slash, backslash or NUL, no leading dash (logs.go:91-97). The joined path is therefore directly inside archiveDir.",
+      "U10": "Read takes only a plain file name (safePath, internal/logs/logs.go:50-53, 91-97), then calls os.Lstat in place of os.Stat and returns ErrNotExist unless the file is regular, so a symbolic link is refused (logs.go:54-60).",
+      "U3": "Put caps the map at maxEntries = 10000 (internal/cache/cache.go:29): at the cap it deletes every expired entry and, if still full, resets the map before it stores (cache.go:78-88)."
+    },
+    "full-bughunt-low-05-20261117T051512Z": {
+      "U1": "ArchiveEntries rejects any name that is not a plain file name (safeName: no separators, no '.' or '..') before joining it to the archive directory, and Lstat then requires a regular file there: internal/logs/logs.go:70-80 and 96-100. handleArchive calls this function.",
+      "U10": "Read accepts only a plain file name, stats it with os.Lstat and returns ErrNotExist unless it is a regular file, so a symbolic link is refused: internal/logs/logs.go:50-60. handleLogs calls this function."
+    },
+    "full-bughunt-max-01-20261117T051845Z": {
+      "U1": "ArchiveEntries opens the archive through openFile, which accepts only a plain *.tar.gz file name (validName: no separators, filepath.IsLocal, Base(name) == name) and a regular file found by Lstat: internal/logs/logs.go:94-98, 137-148 and 168-174.",
+      "U10": "Read opens through openFile, which uses os.Lstat and returns ErrNotExist unless the name is a regular file, then confirms with os.SameFile that the opened file is the one checked: internal/logs/logs.go:72-73, 142-148 and 153-163.",
+      "U2": "handleDecide reads the cache generation before it reads the policy and stores with PutIfCurrent, which under the cache lock drops the decision if a flush happened since; Flush increments the generation as it clears the map, so nothing computed under an old policy survives or is stored after the flush: internal/server/decide.go:56-57 and 89; internal/cache/cache.go:114-133 and 166-171; handlePutPolicy sets then flushes at internal/server/handlers.go:124-125.",
+      "U3": "maxEntries = 10000; putLocked calls evictLocked when a new key arrives at the limit, which drops expired entries and then a tenth of the live ones, so the map never exceeds the limit: internal/cache/cache.go:22, 137-143 and 148-163, reached from PutIfCurrent (decide.go:89).",
+      "U4": "ref.Parse rejects a reference whose registry plus repository exceeds 255 bytes; the tag (128) and digest (71) are already bounded by their patterns, so the whole reference that reaches the audit trail is capped: internal/ref/ref.go:25 and 86-88 (patterns at 30-31).",
+      "U5": "Validate returns an error when a tenant's token equals AdminToken: internal/config/config.go:137-139. NewServer calls Validate.",
+      "U6": "tokenEqual hashes both tokens with SHA-256 and compares the digests in constant time; both tenantForToken and adminAuth use it: internal/server/middleware.go:44-48, 34 and 78.",
+      "U7": "the log keeps a slice per tenant (byTenant), Record trims only that tenant's slice to max, and ForTenant reads only that slice: internal/audit/audit.go:25, 53-57 and 69-73.",
+      "U9": "the archive is read in-process and the listing fails with ErrArchiveTooLarge past 100000 entries or 16 MiB of names: internal/logs/logs.go:24-25 and 109-128 (check at 123-126)."
+    },
+    "full-bughunt-max-02-20261117T040414Z": {
+      "U1": "ArchiveEntries opens through openInDir (internal/logs/logs.go:92), which first requires validName (logs.go:133-135, 164-169): the name must end in .tar.gz, contain no slash, path separator or NUL, and pass filepath.IsLocal, so it cannot leave archiveDir.",
+      "U10": "Read opens through openInDir (internal/logs/logs.go:69-70), which takes only a plain .log file name, Lstats it and returns ErrNotExist unless it is a regular file, so a symbolic link is refused (logs.go:132-143). It then confirms os.SameFile after the open (logs.go:148-158).",
+      "U2": "The policy store carries a version that Set increments under its write lock (internal/policy/policy.go:142-147), and GetWithVersion returns the policy and the version under one read lock (policy.go:134-139). handleDecide reads both (internal/server/decide.go:52) and puts the version into the cache key (decide.go:67, internal/cache/cache.go:57-59) used for Get (decide.go:68) and PutUntil (decide.go:91). A decision computed under an older policy lands under an old-version key that no request reading the current policy can look up, so it cannot be served. It is still stored; credit rests on the 'serve' alternative.",
+      "U3": "The cache is capped at maxEntries = 100000 (internal/cache/cache.go:40). PutUntil calls evict when a new key arrives at the cap (cache.go:101-103); evict drops every expired entry and then live ones until the map is below nine tenths of the cap (cache.go:111-123). handleDecide stores through PutUntil (internal/server/decide.go:91).",
+      "U5": "Validate returns 'admin_token must differ from every tenant token' when the admin token is in the set of tenant tokens (internal/config/config.go:148-151).",
+      "U6": "tokenEqual hashes the configured and the presented token with SHA-256 and compares the two fixed-size digests with subtle.ConstantTimeCompare (internal/server/middleware.go:44-48). It replaces the raw comparison in both tenantForToken (middleware.go:34) and adminAuth (middleware.go:78).",
+      "U8": "When the attestation verifies, handleDecide computes validUntil = issued_at + AttestationMaxAge (internal/server/decide.go:79-87) and stores with PutUntil (decide.go:91). PutUntil sets the entry's expiry to the earlier of now+TTL and validUntil and stores nothing if that is already past (internal/cache/cache.go:87-105); Get drops entries at their expiry (cache.go:72-75).",
+      "U9": "ArchiveEntries walks the archive with archive/tar and fails with 'too many entries' once it holds maxArchiveEntries (100000) names or the names exceed maxArchiveNameBytes (16 MiB) (internal/logs/logs.go:104-123, limits at 23-24). Bounded by entry count; headers with an empty name are skipped without counting."
+    },
+    "full-bughunt-max-03-20261117T045258Z": {
+      "U1": "ArchiveEntries opens the archive through openInDir, which accepts only a plain *.tar.gz file name (validName: no separators, filepath.IsLocal, Base(name) == name) and a regular file found by Lstat: internal/logs/logs.go:90-94, 126-137 and 158-163.",
+      "U10": "Read opens through openInDir, which uses os.Lstat and returns ErrNotExist unless the name is a regular file, then confirms with os.SameFile: internal/logs/logs.go:68-69, 131-137 and 149-152.",
+      "U2": "decide holds the read side of decisionMu from reading the policy through storing the decision, and handlePutPolicy holds the write side around policies.Set plus cache.Flush (handleFlushCache likewise), so a decision made under the old policy is always stored before the flush that removes it, never after: internal/server/decide.go:83-115; internal/server/handlers.go:113-116 and 123-125; internal/server/server.go:31-33.",
+      "U3": "the cache has maxEntries (default 10000); when a new key arrives at the limit, PutUntil calls makeRoom, which drops expired entries and then live ones until below the limit: internal/cache/cache.go:20, 38, 117-119 and 125-137. Put goes through PutUntil.",
+      "U4": "ref.Parse rejects any reference longer than 512 bytes before parsing it: internal/ref/ref.go:31 and 41-43. handleDecide parses before anything is recorded.",
+      "U5": "Validate returns an error when a tenant's token equals AdminToken: internal/config/config.go:142-145.",
+      "U6": "tokenEqual hashes both tokens with SHA-256 and compares the digests in constant time; both tenantForToken and adminAuth use it: internal/server/middleware.go:31-35, 44 and 79.",
+      "U8": "a decision made with a verified attestation is stored with PutUntil(key, d, verifier.Expires(att)), which sets the entry's expiry to the earlier of the TTL and issued_at + max age, and Get drops an entry at its expiry: internal/server/decide.go:108-113; internal/cache/cache.go:103-121 and 88-91; internal/attest/attest.go:67-70.",
+      "U9": "the tar reader sits on a cappedReader limited to 4 GiB of decompressed data, and the listing fails past 100000 entries or 16 MiB of names: internal/logs/logs.go:23-30, 103, 114-117 and 168-183."
+    },
+    "full-bughunt-max-04-20261117T053547Z": {
+      "U1": "ArchiveEntries requires the .tar.gz suffix and opens through openInDir (internal/logs/logs.go:99-105). openInDir refuses any name that fails plainName (logs.go:144-147), which rejects '.', '..', any slash, backslash or NUL and non-local names (logs.go:177-181).",
+      "U10": "Read now goes through Open (internal/logs/logs.go:63-64), and handleLogs calls Open directly (internal/server/handlers.go:30). Open requires a .log suffix and uses openInDir (logs.go:79-83), which takes only a plain file name, Lstats it and returns not-exist unless it is a regular file, so a symbolic link is refused (logs.go:144-155), then checks os.SameFile after the open (logs.go:160-170).",
+      "U2": "The cache gets a generation counter that Flush increments (internal/cache/cache.go:29, 163-168). handleDecide reads it before it reads the policy (internal/server/decide.go:58-59) and stores with PutIf (decide.go:96), which drops the decision if the generation has changed (cache.go:116-123). handlePutPolicy sets the policy and then flushes (internal/server/handlers.go:112-113), so a decision computed under the old policy is either flushed or refused at store time.",
+      "U3": "store caps the map at maxEntries = 10000 (internal/cache/cache.go:21): when a new key arrives at the cap it calls evict (cache.go:139-141), which drops expired entries and then live ones until the map is at most nine tenths full (cache.go:148-160). Put and PutIf both go through store.",
+      "U4": "ref.Parse rejects any reference longer than maxLength = 456 bytes before it parses (internal/ref/ref.go:37, 47-49) and any registry + '/' + repository longer than 255 (ref.go:33, 94-96). handleDecide parses every image through it (internal/server/decide.go:65).",
+      "U5": "Validate returns an error when t.Token == c.AdminToken (internal/config/config.go:143-145).",
+      "U7": "Log replaces the single slice with byTenant map[string][]Entry (internal/audit/audit.go:25, 36). Record appends to the entry's own tenant slice and trims that slice to max (audit.go:54-58); ForTenant reads only that tenant's slice (audit.go:77-82). One tenant's volume no longer evicts another tenant's entries.",
+      "U8": "For a request with an attestation, handleDecide sets notAfter = Verifier.Expires = issued_at + maxAge (internal/server/decide.go:82-86, internal/attest/attest.go:99-103) and stores with PutIf (decide.go:96). store caps the entry's expiry at notAfter and stores nothing if that is already past (internal/cache/cache.go:131-138).",
+      "U9": "ArchiveEntries reads the archive with archive/tar and returns errTooManyEntries once it holds maxArchiveEntries (100000) names or more than maxArchiveNameBytes (16 MiB) of names (internal/logs/logs.go:117-136, limits at 23-26). Bounded by entry count; headers with an empty name are skipped without counting."
+    },
+    "full-bughunt-max-05-20261117T042101Z": {
+      "U1": "ArchiveEntries opens through openInDir (internal/logs/logs.go:89). openInDir refuses any name that is longer than 255 bytes, lacks the .tar.gz suffix, contains a slash, backslash or NUL, or fails filepath.IsLocal (logs.go:131-137), so the path stays directly inside archiveDir.",
+      "U10": "Read opens through openInDir (internal/logs/logs.go:63-64). openInDir takes only a plain .log file name, Lstats it and returns ErrNotExist unless it is a regular file, which refuses symbolic links (logs.go:131-146), and checks os.SameFile after the open (logs.go:151-161).",
+      "U2": "The cache gets a generation counter that Flush increments (internal/cache/cache.go:28, 163-168). handleDecide reads it before it reads the policy (internal/server/decide.go:56-57) and stores with PutFresh (decide.go:93), which drops the decision if the generation has changed (cache.go:122-129). handlePutPolicy sets the policy and then flushes (internal/server/handlers.go:110-111), so a decision computed under the old policy is either flushed or refused at store time.",
+      "U3": "put caps the map at maxEntries = 10000 (internal/cache/cache.go:19): when a new key arrives at the cap it drops expired entries (cache.go:144-145, 154-160) and, if still full, resets the map (cache.go:146-148). Put and PutFresh both go through put.",
+      "U4": "ref.Parse rejects a reference whose registry + '/' + repository is longer than maxNameLength = 255 (internal/ref/ref.go:24, 71-73). The tag is already limited to 128 characters by tagRE and the digest is fixed-length (ref.go:29-30, 47, 57), so the whole reference, and the image stored in each audit entry, is capped at about 456 bytes. handleDecide parses every image through it (internal/server/decide.go:63).",
+      "U5": "Validate returns 'tenant uses the admin token' when t.Token == c.AdminToken (internal/config/config.go:138-142).",
+      "U8": "When the attestation verifies, handleDecide sets notAfter = issued_at + AttestationMaxAge (internal/server/decide.go:79, 85-88) and passes it to PutFresh (decide.go:93). put caps the entry's expiry at notAfter and stores nothing if that is already past (internal/cache/cache.go:136-143).",
+      "U9": "ArchiveEntries reads the archive with archive/tar and returns ErrArchiveTooLarge once it holds maxArchiveEntries (100000) names or more than maxArchiveNameBytes (16 MiB) of names (internal/logs/logs.go:101-120, limits at 22-25). Bounded by entry count."
+    },
+    "full-bughunt-medium-01-20261117T053256Z": {
+      "U1": "ArchiveEntries opens the archive through openRegular, which accepts only a plain file name (safeName: no separators, filepath.IsLocal, Base(name) == name) and a regular file found by Lstat: internal/logs/logs.go:122-130, 27-35 and 39-50.",
+      "U10": "Read opens through openRegular, which uses os.Lstat and returns ErrNotExist unless the name is a regular file, then confirms with os.SameFile: internal/logs/logs.go:98-102, 44-50 and 56-60.",
+      "U3": "maxEntries = 10000; when a new key arrives at the limit, Put drops expired entries and, if still full, empties the map: internal/cache/cache.go:41 and 100-111.",
+      "U8": "a decision is stored only when the request carries no attestation, so no approval that relied on an attestation is ever in the cache and every such request is verified afresh: internal/server/decide.go:82-86 (keys with an attestation never match stored keys, internal/cache/cache.go:47-57).",
+      "U9": "the tar reader sits on io.LimitReader(gz, 1\u003c\u003c30) and the listing fails once it holds 10000 entries: internal/logs/logs.go:20-23, 137 and 147-149."
+    },
+    "full-bughunt-medium-02-20261117T044953Z": {
+      "U1": "ArchiveEntries returns ErrNotExist unless validName(name, '.tar.gz') (internal/logs/logs.go:117-119). validName rejects '.', '..', any slash, backslash or NUL, a leading dash or dot, and any name that differs from its filepath.Base (logs.go:53-61), so the path openRegular joins (logs.go:66, 120) stays directly inside archiveDir.",
+      "U10": "Read returns ErrNotExist unless validName(name, '.log') and opens through openRegular (internal/logs/logs.go:89-93). openRegular Lstats the path and returns ErrNotExist unless it is a regular file, which refuses symbolic links (logs.go:65-73), then checks os.SameFile after the open (logs.go:79-83).",
+      "U3": "Put caps the map at maxEntries = 10000 (internal/cache/cache.go:16): when a new key arrives at the cap it deletes expired entries and, if still full, resets the map (cache.go:77-87).",
+      "U8": "handleDecide now verifies the attestation on every request, before the cache lookup (internal/server/decide.go:62-72), and puts the result into the cache key (decide.go:76-77). An approval that relied on a verified attestation sits under the verified=true key. Once the attestation has expired Verify fails, the request looks up the verified=false key, and the old approval is not served. The entry itself still lives for the cache TTL but cannot be reached.",
+      "U9": "ArchiveEntries reads the archive with archive/tar and returns 'too many entries' once it holds maxArchiveEntries = 100000 names (internal/logs/logs.go:112, 130-146; check at 140-142). Bounded by entry count only: headers with an empty name are not counted and there is no byte limit."
+    },
+    "full-bughunt-medium-03-20261117T051305Z": {
+      "U1": "ArchiveEntries rejects any name that differs from its base name or contains a separator (validName), so the joined path stays in the archive directory, and Lstat requires a regular file there: internal/logs/logs.go:72-82 and 101-109.",
+      "U10": "Read accepts only a plain file name, stats it with os.Lstat and returns ErrNotExist unless it is a regular file, so a symbolic link is refused: internal/logs/logs.go:50-62.",
+      "U3": "maxEntries = 10000; when a new key arrives at the limit, Put drops expired entries and, if still full, empties the map: internal/cache/cache.go:16 and 77-90.",
+      "U5": "Validate returns an error when a tenant's token equals AdminToken: internal/config/config.go:134-136."
+    },
+    "full-bughunt-medium-04-20261117T041907Z": {
+      "U1": "ArchiveEntries calls checkName before it builds the path (internal/logs/logs.go:122-124). checkName (logs.go:36-43) accepts only a plain base name: name == filepath.Base(name), filepath.IsLocal, no slash or backslash, so '../other/x.tar.gz' is refused. The file is then opened by openRegular directly under archiveDir (logs.go:125, 47-66). handleArchive still reaches it at internal/server/handlers.go:58.",
+      "U10": "Read goes through checkName and openRegular (internal/logs/logs.go:96-104). openRegular Lstats the path and refuses anything that is not a regular file, so a symbolic link is rejected (logs.go:49-55), and it checks os.SameFile after the open (logs.go:60-64).",
+      "U8": "handleDecide no longer caches any decision made for a request that carries an attestation: Put runs only when req.Attestation == nil (internal/server/decide.go:84-88). The key for an attestation request includes the attestation (decide.go:64, internal/cache/cache.go:40-47) and is never stored, so every such request misses the cache and is verified again (decide.go:73-81). No cached approval rests on an attestation.",
+      "U9": "ArchiveEntries reads the archive in process with archive/tar over io.LimitReader(gz, maxArchiveBytes), 1 GiB of decompressed data (internal/logs/logs.go:135), and returns an error once maxArchiveEntries (10000) names are collected (logs.go:145-147). Limits are defined at logs.go:22-25."
+    },
+    "full-bughunt-medium-05-20261117T040044Z": {
+      "U1": "ArchiveEntries opens through openRegular (internal/logs/logs.go:118), which returns ErrNotExist unless plainName(name) (logs.go:69-71). plainName rejects '.', '..', any slash, backslash or NUL, non-local names and anything that differs from its filepath.Base (logs.go:55-63).",
+      "U10": "Read requires a .log suffix and opens through openRegular (internal/logs/logs.go:94-97). openRegular takes only a plain file name, Lstats it and returns ErrNotExist unless it is a regular file, which refuses symbolic links (logs.go:68-79), then checks os.SameFile after the open (logs.go:85-88).",
+      "U9": "ArchiveEntries reads the archive with archive/tar and returns 'too many entries' once it holds maxArchiveEntries = 100000 names (internal/logs/logs.go:51, 128-144; check at 138-140). Bounded by entry count only: headers with an empty name are not counted and there is no byte limit."
+    }
+  }
+}

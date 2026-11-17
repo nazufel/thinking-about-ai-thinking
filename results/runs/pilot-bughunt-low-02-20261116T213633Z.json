@@ -1,0 +1,47 @@
+{
+  "id": "pilot-bughunt-low-02-20261116T213633Z",
+  "plan": "pilot",
+  "task": "bughunt",
+  "effort": "low",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-16T21:36:33.61769Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.1,
+  "cost_usd": 0.4575184,
+  "turns": 9,
+  "output_tokens": 4974,
+  "tool_calls": 8,
+  "tool_calls_by_name": {
+    "Bash": 7,
+    "Read": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 4,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 5,
+    "lines_added": 54,
+    "lines_removed": 15
+  },
+  "final_report": "I found and fixed nine security problems. `go vet` is clean and `go test ./...` passes in every package. I didn't change any flags, config keys or endpoint paths, and I didn't write or run any exploit code.\n\n**Critical**\n1. **Anyone could change any tenant's policy without a token** (`internal/server/server.go:76`). `PUT /admin/policies/{tenant}` was registered outside the admin token check. It now sits behind it like the other `/admin` routes.\n2. **Shell command injection through the archives endpoint** (`internal/logs/logs.go:70-81`). The archive name was pasted into an `sh -c \"tar -tzf …\"` command. `tar` is now run directly, without a shell, and the name must be a plain `*.tar.gz` file name that is a regular file and doesn't start with `-`.\n3. **Path traversal in the logs endpoint** (`internal/logs/logs.go:50-58`). A `name` like `../../etc/passwd` could read any file on the host. Names must now be plain `*.log` file names, and symlinks, directories and other non-regular files are refused. The shared `safeName` check is at the end of the same file.\n4. **One tenant could act as another** (`internal/server/decide.go:43-47`). The optional `tenant` field in the request body replaced the tenant identified by the token. The token now decides the tenant. If the body names a different tenant, the request gets `403`.\n5. **Cached decisions were shared between tenants** (`internal/server/decide.go:60`). An \"allow\" cached for one tenant's lenient policy was served to tenants with stricter policies. The cache key now includes the tenant.\n6. **Shortened signatures were accepted** (`internal/attest/attest.go:82`). A signature of just 1 byte could pass, so it could be guessed quickly. The full HMAC-SHA256 signature is now required.\n7. **The registry allowlist only checked how the name starts** (`internal/policy/policy.go:88-95`). For example, `cgr.dev` also admitted `cgr.dev.evil.com`. A registry must now match an entry exactly, or be that host plus a port (`cgr.dev:443`), as the README says.\n8. **An attestation for one image could be reused for another** (`internal/policy/policy.go:77-78`). Nothing checked that the attestation's digest matched the image. Tenants that require attestations now need the image pinned by digest, and that digest must match the attested one.\n\n**Medium**\n9. **`/debug/config` exposed every secret without a token** (`internal/server/server.go:80, 92-105`). It returned the admin token, all tenant tokens and all builder keys. It now needs the admin token, and those values come back as `[redacted]`.\n\nThree of these change what clients see, so check them before you deploy:\n- `/debug/config` now returns `401` without the admin token.\n- A shortened signature that used to pass is now rejected.\n- A `tenant` in the request body that doesn't match the token now gets `403`."
+}

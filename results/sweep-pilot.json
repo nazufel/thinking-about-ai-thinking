@@ -1,0 +1,26 @@
+{
+  "order": [
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 1
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 1
+    }
+  ],
+  "plan": "pilot",
+  "seed": 1794864993604520000
+}

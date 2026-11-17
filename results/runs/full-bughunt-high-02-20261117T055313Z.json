@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-high-02-20261117T055313Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "high",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:53:13.240468Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 2.47,
+  "cost_usd": 0.7443624,
+  "turns": 16,
+  "output_tokens": 13256,
+  "tool_calls": 15,
+  "tool_calls_by_name": {
+    "Bash": 14,
+    "Edit": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 9,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 183,
+    "lines_removed": 32
+  },
+  "final_report": "I found and fixed 11 vulnerabilities, all by reading the code. `go vet ./...` is clean and all the existing tests pass (`go test ./...`). I didn't add new tests or write any exploit code, so the fixes have been checked only against the existing tests. Flags and the config format are unchanged. The HTTP API changed in two places, both noted below.\n\n**Critical**\n\n1. **Command injection in archive listing** (`internal/logs/logs.go:123`). The archive name was passed into `sh -c \"tar -tzf \"+path`, so a tenant could run any shell command on the server. The listing is now done in Go with `archive/tar` and `compress/gzip`, with no shell. It is also capped at 10,000 entries and 1 GiB uncompressed to guard against gzip bombs.\n2. **`PUT /admin/policies/{tenant}` had no authentication** (`internal/server/server.go:74`). It was registered outside the admin auth, so anyone could rewrite any tenant's policy. It is now behind the admin token.\n3. **Path traversal in `GET /v1/logs?name=`** (`internal/logs/logs.go:58`, `:71`, `:102`). The name was joined straight onto the log directory, so `../../etc/passwd` worked. Names must now be plain file names ending in `.log`, with no separators or `..`, and must be regular files in that directory. Symlinks are refused, and the file is checked again after opening in case it was swapped. Reads are capped by a `LimitReader` as well as by the size check. Archives get the same treatment.\n4. **Empty or shortened attestation signatures were accepted** (`internal/attest/attest.go:84`). Only as many MAC bytes as the caller sent were compared, so an empty signature passed. The full MAC is now required.\n5. **The `tenant` field in the request body overrode the token** (`internal/server/decide.go:48`). Any tenant could have its images judged by another tenant's policy, write into another tenant's audit trail, and discover tenant names. The tenant now always comes from the token. A `tenant` field that names someone else gets a **403**; older clients that send their own name still work.\n\n**High**\n\n6. **Attestations weren't tied to the image** (`internal/policy/policy.go:77`). A valid attestation for one digest could be reused to approve any other image. The attestation's digest must now equal the image's pinned digest.\n7. **Registry allowlist used a prefix match** (`internal/policy/policy.go:103`). `cgr.dev` also admitted `cgr.dev.attacker.example`. It now needs an exact match, or the allowed host plus a port as the README describes.\n8. **Decision cache was shared across tenants** (`internal/server/decide.go:65`). An allow given to a tenant with a loose policy was replayed to a stricter one. The tenant is now part of the cache key.\n9. **Cache key ignored most of the attestation** (`internal/cache/cache.go:51`). The key only had the builder and signature, so a cached allow could be hit with a changed digest or timestamp without being verified. All fields are now in the key. Separately, attestations are now verified on every request, and a cached decision is reused only if its attestation still verifies (`decide.go:80`), so the cache can't keep an expired attestation alive.\n10. **`/debug/config` leaked every secret without authentication** (`internal/server/server.go:81`, `:101`). It returned the admin token, every tenant token and every builder key. It now needs the admin token and redacts all secrets. This is the second API change: in debug mode, callers of this endpoint now need the admin token.\n\n**Medium**\n\n11. **The cache had no size limit** (`internal/cache/cache.go:83`). Any tenant could use up memory by asking about many different images. It is now capped at 10,000 entries: expired ones are dropped first, and if it is still full it is cleared."
+}

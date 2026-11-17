@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-low-03-20261117T051157Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "low",
+  "trial": 3,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:11:57.623938Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.46,
+  "cost_usd": 0.0664218,
+  "turns": 3,
+  "output_tokens": 1453,
+  "tool_calls": 2,
+  "tool_calls_by_name": {
+    "Bash": 2
+  },
+  "ran_tests": true,
+  "thinking_blocks": 2,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I renamed the `registry` setting to `registry-url` everywhere it's set or read, and all tests pass (`go vet` and `go test ./...`).\n\n- **Flag:** `-registry` is now `-registry-url` (`cmd/gatekeeper/main.go`). The internal field is now `registryURL`.\n- **Config key:** the JSON key is now `\"registry-url\"`. The Go field is now `Config.RegistryURL` in `internal/config/config.go`, with its default and validation updated. The validation error now says \"registry-url must be set\".\n- **Other code:** `internal/server/decide.go` reads the new field.\n- **Example config and README:** `config.example.json` and the flag table, config table and example in `README.md` all use the new name.\n- **Tests:** the flag, config key and field names are updated, and `TestLoadReadsRegistry` is now `TestLoadReadsRegistryURL`.\n\nThis is a breaking change with no fallback. Any existing config file that still uses `\"registry\"` will fail to load, because the setting is required, and any script passing `-registry` will be rejected as an unknown flag. They need to switch to the new name.\n\nI deliberately left the other uses of \"registry\" alone: the `Reference.Registry` field and `defaultRegistry` parameter in `internal/ref`, and the registry allowlist in `internal/policy`. Those describe the registry an image comes from, not this setting."
+}

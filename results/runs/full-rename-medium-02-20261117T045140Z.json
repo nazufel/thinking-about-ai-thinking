@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-medium-02-20261117T045140Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "medium",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:51:40.511232Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.63,
+  "cost_usd": 0.1526362,
+  "turns": 6,
+  "output_tokens": 2823,
+  "tool_calls": 5,
+  "tool_calls_by_name": {
+    "Bash": 5
+  },
+  "ran_tests": true,
+  "thinking_blocks": 3,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I renamed the setting to `registry-url`, and `go vet ./...` and `go test ./...` both pass.\n\n**What changed:**\n- **Flag:** `-registry` is now `-registry-url` (`cmd/gatekeeper/main.go`). The internal field is now `registryURL`.\n- **Config key:** the JSON key is now `\"registry-url\"`. The Go field is now `Config.RegistryURL`, and the validation error says `registry-url must be set` (`internal/config/config.go`). The one place the server uses it, `internal/server/decide.go:53`, is updated too.\n- **Tests:** `cmd/gatekeeper/main_test.go` and `internal/config/config_test.go` now use the new flag, key and field names.\n- **Docs:** the flag table, the config table and the example in `README.md`, plus `config.example.json`.\n\n**Left alone on purpose:** `ref.Reference.Registry` (the registry read out of an image reference), the `allowed_registries` policy key and `registryAllowed`. They're a separate idea from this setting.\n\n**Two things to check:**\n1. **Hyphen vs underscore:** I used `registry-url` for the config key, as you wrote it. Every other config key uses underscores (`log_dir`, `cache_ttl_seconds`), so `registry_url` would match the rest of the file. If you'd prefer that, only the JSON tag in `config.go` and the strings in the tests and docs need changing.\n2. **Old config files will stop loading:** the loader rejects unknown keys, so any existing file that still says `\"registry\"` will now fail with an error instead of being quietly ignored. Anyone deploying this has to update their files. I didn't keep the old name working because you asked for a straight rename."
+}

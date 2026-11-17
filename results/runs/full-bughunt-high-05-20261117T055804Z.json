@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-high-05-20261117T055804Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "high",
+  "trial": 5,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:58:04.031856Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 2.51,
+  "cost_usd": 0.7599398,
+  "turns": 17,
+  "output_tokens": 13449,
+  "tool_calls": 16,
+  "tool_calls_by_name": {
+    "Bash": 15,
+    "Edit": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 11,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 7,
+    "lines_added": 206,
+    "lines_removed": 31
+  },
+  "final_report": "I found and fixed 11 security problems. All existing tests still pass (`go vet ./...` is clean and `go test -count=1 ./...` passes in every package). As asked, I fixed them from the code alone and did not write or run any exploit code. The new checks have no tests of their own yet. The flags, the config file format and the API's routes and request/response formats are unchanged; two corrections do reject requests that used to work (items 2 and 7).\n\n**Critical**\n\n1. **Anyone could change a tenant's policy without a token.** `PUT /admin/policies/{tenant}` was registered outside the admin authentication check, and that more specific route took priority, so it skipped the check entirely. It now goes through the admin token check like the other admin endpoints. — `internal/server/server.go:77`\n2. **One tenant could act as another.** In `POST /v1/decide`, the optional `tenant` field in the request body overrode the tenant identified by the token. That let a caller be judged under another team's policy and write entries into its audit trail. The tenant now always comes from the token. A `tenant` field is still accepted, but if it names anyone other than the caller the request gets `403`. — `internal/server/decide.go:46`\n3. **Attestation signatures could be forged.** The signature check compared only as many bytes as the caller sent, so an empty or one-byte signature passed. The full signature must now match. — `internal/attest/attest.go:84`\n4. **Command injection in `/v1/archives`.** The archive name was pasted into a `sh -c \"tar -tzf …\"` command. Archives are now read in Go with `archive/tar` and `compress/gzip`, so no shell runs. The name must be a plain file name in `archive_dir`, symlinks are refused, and the entry count and decompressed size are capped. — `internal/logs/logs.go:115`\n5. **Path traversal in `/v1/logs?name=`.** A name like `../../etc/passwd` could read any file the service can read. The same plain-file-name and no-symlink checks now apply, plus a `.log` suffix (`List` already only shows `.log` files). Reading is also capped at the size limit. — `internal/logs/logs.go:34`, `:94`\n\n**High**\n\n6. **Cached decisions leaked between tenants.** The cache key didn't include the tenant, so an \"allow\" given under one tenant's lenient policy was then served to a stricter tenant. The key now includes the tenant and every field of the attestation, each quoted so two different requests can't share a key. — `internal/cache/cache.go:47`, `:63`; used at `internal/server/decide.go:63`\n7. **An attestation could be reused for any image.** Its digest was never compared with the image being checked, so one valid attestation approved anything. When a policy requires an attestation, the image must now be pinned by digest and that digest must match the attestation. — `internal/policy/policy.go:80`\n8. **The registry allowlist matched by prefix.** An entry like `cgr.dev` also let in `cgr.dev.evil.example`. A registry now has to match exactly, or be the same host plus a numeric port such as `cgr.dev:443`, as the README describes. — `internal/policy/policy.go:89`\n9. **`/debug/config` exposed every secret.** It returned the admin token, all tenant tokens and all builder keys to anyone who asked. It now needs the admin token and shows those values as `[redacted]`. — `internal/server/server.go:82`, `:97`\n\n**Medium**\n\n10. **Two cache weaknesses.**\n    - The cache had no size limit, so a caller could fill memory by asking about many different images. It is now capped at 10,000 entries, and expired ones are removed first. — `internal/cache/cache.go:41`, `:100`\n    - A cached \"allow\" could outlive the attestation it relied on. It now expires no later than the attestation does. — `internal/cache/cache.go:93`, `internal/server/decide.go:88`\n11. **A tenant's token could equal the admin token**, which would make that tenant an admin. The config check now rejects this. — `internal/config/config.go:135`\n\n**What callers might notice:**\n- `/debug/config` (only available in debug mode) now needs the admin token.\n- A `tenant` field that doesn't match the caller's token now gets `403`.\n- Tenants that require attestations must now deploy by digest, with a matching attestation digest."
+}

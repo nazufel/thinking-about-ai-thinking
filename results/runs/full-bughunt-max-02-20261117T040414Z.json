@@ -1,0 +1,48 @@
+{
+  "id": "full-bughunt-max-02-20261117T040414Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "max",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:04:14.692215Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 12.71,
+  "cost_usd": 3.0058186,
+  "turns": 39,
+  "output_tokens": 76557,
+  "tool_calls": 38,
+  "tool_calls_by_name": {
+    "Bash": 28,
+    "Edit": 9,
+    "Write": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 30,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 9,
+    "lines_added": 293,
+    "lines_removed": 52
+  },
+  "final_report": "I fixed 9 vulnerabilities plus 5 smaller hardening issues in the Go code, without changing the flags, the config file format, or the HTTP API's routes, fields and status codes. The existing tests all pass, including under the race detector, and `gofmt` and `go vet` are clean. Nothing uses an API newer than the module's `go 1.22`. As you asked, I didn't write or run exploit code, and I didn't add regression tests that use attack inputs.\n\n## Critical\n\n1. **Anyone could rewrite any tenant's policy.** The `PUT /admin/policies/{tenant}` route was registered outside the admin-token check. It now sits with the other admin routes. `internal/server/server.go:76`\n2. **Command injection in `/v1/archives`.** The `name` query parameter went straight into `sh -c \"tar -tzf …\"`. I replaced the shell call with Go's built-in tar and gzip readers, plus the name checks in item 3. There are now caps on entry count and name bytes. `internal/logs/logs.go:98-119`\n3. **Any file could be read through `/v1/logs` and `/v1/archives`.** A name like `../` reached files outside the configured directories. A name must now be a plain file name ending in `.log` or `.tar.gz`. Symlinks and other non-regular files are refused, the file is re-checked after opening, and reads stop at the size limit even if the file grows. `internal/logs/logs.go:132-170`, `Read` at `:69-87`\n4. **Attestations could be forged.** A signature cut short to any length, including empty, was accepted. The full 32-byte HMAC is now required. `internal/attest/attest.go:85`\n5. **One attestation approved any image.** The attestation's digest was never compared with the image's. When a policy requires an attestation, the image must now be pinned by digest and the digests must match. `internal/policy/policy.go:80-83`\n6. **Tenants shared cached decisions.** The cache key didn't include the tenant, so a strict tenant could get a lax tenant's cached \"allow\". The key now includes the tenant and the policy version, and covers every attestation field. `internal/cache/cache.go:45-59`, used at `internal/server/decide.go:67`\n7. **A tenant could choose whose policy applied.** The `tenant` field in the request body overrode the token, which also let one tenant write entries in another's audit trail. The token's tenant is always used; a different name in the body is logged and ignored. `internal/server/decide.go:47-51`\n\n## High\n\n8. **The registry allowlist used a prefix match.** An entry of `cgr.dev` admitted `cgr.dev.evil.com`. Matching is now exact, and a port-less entry also covers the same host on any port, as the README describes. `internal/policy/policy.go:93-104`\n9. **`/debug/config` exposed all secrets without auth.** It returned the admin token, tenant tokens and builder keys. They are now redacted. `internal/config/config.go:161`, `internal/server/server.go:94`\n\n## Lower\n\n10. **Cached allows outlived attestations.** A cached decision could be reused after its attestation expired. It is now dropped when the attestation expires. `internal/cache/cache.go:87`, `internal/server/decide.go:86-91`\n11. **A policy update could race with a decision.** A decision made under the old policy could be cached after the update had flushed the cache. Policies now carry a version that is part of the cache key. `internal/policy/policy.go:134-146`\n12. **The cache could grow without limit.** Expired entries were never removed unless the same key was requested again, and rate limiting is off by default. The cache is now capped at 100,000 entries, removing expired ones first. `internal/cache/cache.go:40,111`\n13. **The admin token could equal a tenant token,** which would give that tenant admin rights. Such a config is now rejected. `internal/config/config.go:149`\n14. **Token comparison leaked token length through timing,** and request values were written to the log without a size limit. Tokens are now hashed before the constant-time comparison, and logged request values are capped at 128 bytes. `internal/server/middleware.go:44`, `internal/server/decide.go:100`\n\nI updated `README.md` to describe these behaviors.\n\n## Behavior changes to check before deploying\n- **Shortened signatures are now rejected.** A code comment said \"some builders send a shortened signature\"; any builder that does will start failing. The README has always specified the full HMAC.\n- **Pinning is now required with attestations.** Tenants with `require_attestation` must pin images by digest, even when `require_digest` is off. Without that, the attestation can't be tied to the image.\n- **Log names are stricter.** Names that aren't `*.log`, and symlinked logs, now get `404`. `List` already hid them.\n\n## Left unfixed\nThese need design decisions or would change the config or API:\n- Failed logins aren't rate-limited, so tokens must be long and random.\n- The server speaks plain HTTP, so TLS has to be handled in front of it.\n- Every tenant can read every build log, because logs carry no owner.\n- Audit-file write errors are silently ignored."
+}

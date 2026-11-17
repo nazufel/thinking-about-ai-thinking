@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-medium-01-20261117T043700Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "medium",
+  "trial": 1,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:37:00.434319Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.73,
+  "cost_usd": 0.1636842,
+  "turns": 7,
+  "output_tokens": 3272,
+  "tool_calls": 6,
+  "tool_calls_by_name": {
+    "Bash": 6
+  },
+  "ran_tests": true,
+  "thinking_blocks": 4,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "The `registry` setting is now `registry-url` in the flag, the config key, the code, the tests and the README. `go vet ./...` and `go test ./...` both pass, and `config.example.json` still loads.\n\nWhat changed:\n- **Flag:** `-registry` is now `-registry-url` (`cmd/gatekeeper/main.go`). The options field is now `registryURL`.\n- **Config key:** the JSON key is now `\"registry-url\"`. In Go, `Config.Registry` is now `Config.RegistryURL` (`internal/config/config.go`). The validation error now reads `registry-url must be set`.\n- **Code using it:** `internal/server/decide.go` now passes `s.cfg.RegistryURL`.\n- **Tests:** `cmd/gatekeeper/main_test.go` and `internal/config/config_test.go` use the new flag, key and field names. `TestLoadReadsRegistry` is now `TestLoadReadsRegistryURL`.\n- **Docs and example:** the flag table, key table and worked example in `README.md`, plus `config.example.json`.\n\nDecisions to check:\n- **Breaking change:** the config loader rejects unknown keys, so existing config files that use `\"registry\"` will now fail to load. Anything passing `-registry` will also fail. I didn't keep the old name as an alias. If you need a transition period, that would be a small addition.\n- **Key style:** every other config key uses underscores (`log_dir`, `admin_token`), so `registry-url` with a hyphen stands out. I used the name you gave, but `registry_url` would match the rest. The flag is fine either way.\n- **What I left alone:** I didn't rename the image-reference `Registry` field in `internal/ref`, the policy's `allowed_registries`, or anything else named \"registry\". Those describe the registry part of an image reference, not this setting.\n- **Values:** the value is still a bare host like `cgr.dev`, not a URL with a scheme, even though the new name says \"url\"."
+}

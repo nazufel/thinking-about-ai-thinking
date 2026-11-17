@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-high-01-20261117T051629Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "high",
+  "trial": 1,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:16:29.797429Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 2.21,
+  "cost_usd": 0.6757852,
+  "turns": 13,
+  "output_tokens": 11820,
+  "tool_calls": 12,
+  "tool_calls_by_name": {
+    "Bash": 11,
+    "Write": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 6,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 178,
+    "lines_removed": 26
+  },
+  "final_report": "I fixed 10 vulnerabilities. All existing tests and `go vet` pass, and the flags and config format are unchanged. Two fixes make some requests that used to succeed fail on purpose (items 1 and 4).\n\n### Critical\n\n1. **One tenant could use another tenant's policy** (`internal/server/decide.go:46`). The `tenant` field in the request body overrode the tenant identified by the token. So the `acme` token could send `\"tenant\":\"bank\"` and be judged under bank's policy, and the decision was logged under bank. Now the token always decides the tenant. Older clients can still send `tenant` if it matches; a different name gets `403`.\n2. **Anyone could change a tenant's policy without a token** (`internal/server/server.go:76`). `PUT /admin/policies/{tenant}` was registered outside the admin token check, so anyone could change any tenant's policy. It now needs the admin token, like the README says.\n3. **Shell command injection** (`internal/logs/logs.go:124`, was line 68). `ArchiveEntries` ran `sh -c \"tar -tzf \"+path` with the `name` value from the URL, so the caller could run arbitrary commands. It now reads the archive in Go with no external process, and caps the number of entries at 100,000 and the decompressed size at 1 GiB.\n4. **Secrets exposed by `/debug/config`** (`internal/server/server.go:83`, `:102`). When debug mode was on, this endpoint returned every tenant token, the admin token and the builder keys to anyone. It now needs the admin token and replaces all secrets with `REDACTED`. **This changes the API:** clients that called it without the admin token now get `401`.\n5. **Path traversal in `/v1/logs`** (`internal/logs/logs.go:60`, `:73`, `:100`). `?name=../../etc/passwd` could read any file. Names must now be a plain `*.log` file name inside `log_dir`. Symlinks and anything that isn't a regular file are refused, and reads are capped. The same check now covers archive names in `archive_dir`.\n\n### High\n\n6. **Short or empty signatures were accepted** (`internal/attest/attest.go:84`). Verification only compared as many bytes as the client sent, so `\"signature\": \"\"` passed. The full 32-byte HMAC is now required.\n7. **Lookalike registry names were allowed** (`internal/policy/policy.go:89`, `:98`). A prefix match meant allowing `cgr.dev` also allowed `cgr.dev.attacker.com`. Now only the exact host, or that host plus a numeric port (e.g. `cgr.dev:443`), matches.\n8. **An attestation wasn't tied to the image** (`internal/policy/policy.go:80`). A valid attestation for one digest could approve any other image. The image must now be pinned to exactly the digest in the attestation.\n9. **Cached decisions were shared between tenants** (`internal/server/decide.go:65`). The cache key didn't include the tenant, so one tenant's allow could be returned to a stricter tenant. The key now includes the tenant.\n\n### Medium\n\n10. **Cache weaknesses** (`internal/cache/cache.go:49`, `:83`).\n    - **Loose key:** the cache key used only the builder and signature, so a request carrying a different digest or `issued_at` could reuse an earlier allow without being checked again. The key now covers every attestation field.\n    - **No size limit:** callers choose the image names, so they could grow the cache without limit. It now holds at most 10,000 entries; when full, it clears expired entries first and otherwise skips caching.\n\nOne gap remains: a cached allow can outlive its attestation's expiry by up to `cache_ttl_seconds` (60 seconds by default)."
+}

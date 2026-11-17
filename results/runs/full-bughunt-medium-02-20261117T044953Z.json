@@ -1,0 +1,46 @@
+{
+  "id": "full-bughunt-medium-02-20261117T044953Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "medium",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:49:53.064187Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.74,
+  "cost_usd": 0.572151,
+  "turns": 12,
+  "output_tokens": 9328,
+  "tool_calls": 11,
+  "tool_calls_by_name": {
+    "Bash": 11
+  },
+  "ran_tests": true,
+  "thinking_blocks": 8,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 157,
+    "lines_removed": 35
+  },
+  "final_report": "I found and fixed 11 security problems by reading the code; no exploit code was written or run. All existing tests still pass, and `go vet` and `gofmt` report nothing. The command-line flags and config format are unchanged. The HTTP API has the same endpoints and request/response shapes, but two endpoints now refuse requests they used to accept (#2 and #11).\n\n**Critical**\n1. **Anyone could replace a tenant's policy without logging in.** `PUT /admin/policies/{tenant}` was registered outside the admin token check. I moved it under that check. `internal/server/server.go:76`\n2. **Any tenant could get decisions under another tenant's policy.** The `tenant` field in the request body replaced the tenant identified by the token. Decisions were also written to the other tenant's audit trail. Now the token always decides the tenant, and a different `tenant` value gets a `403`. Older clients that send their own name still work. `internal/server/decide.go:43-49`\n3. **Command injection in `/v1/archives`.** The archive name was passed to `sh -c \"tar -tzf ...\"`, so a crafted name could run shell commands. I replaced this with Go's own tar and gzip readers, so no shell or outside program is used any more. I also added a check that the name is a plain `*.tar.gz` file name inside the archive directory. `internal/logs/logs.go:116`, check at `:53`\n4. **Any file could be read through `/v1/logs?name=`.** `filepath.Join` on the name allowed `../` to escape the log directory. Now only plain `*.log` names are accepted, and only regular files: no symlinks, directories or devices. The file opened is checked to be the one inspected. Reads stop at the size cap even if the file grows after the check. `internal/logs/logs.go:53-110`\n5. **Empty or shortened attestation signatures were accepted.** The code compared only as many bytes as the caller sent, so `\"signature\": \"\"` always passed. It now compares the full HMAC with `hmac.Equal`. `internal/attest/attest.go:84`\n6. **An attestation for one image could approve a different image.** The attestation's `digest` was never compared with the image's digest. A policy that requires attestations now also requires the two to match. `internal/policy/policy.go:77-78`\n7. **One tenant's cached decision was served to other tenants.** The cache key didn't include the tenant, so an allow under a loose policy could be reused by a tenant with a strict one. The key now includes the tenant. `internal/server/decide.go:76`\n\n**High / medium**\n8. **The registry allowlist matched by prefix.** `cgr.dev` also admitted `cgr.dev.evil.com`. It now needs an exact host match, or the same host with a port, as the README describes. `internal/policy/policy.go:87`\n9. **Cached allows could outlive their attestation, and the cache key ignored most of it.** The key used only the builder and signature. It now covers builder, digest, issue time and signature. The attestation is checked on every request, cached or not, and whether it passed is part of the key. So a cached allow can't be reused once the attestation expires. `internal/server/decide.go:64-76`, `internal/cache/cache.go:46`\n10. **The decision cache could grow without limit** (memory exhaustion). It is now capped at 10,000 entries; expired entries are dropped first. `internal/cache/cache.go:16,77-86`\n11. **`/debug/config` exposed every secret with no login.** It returned the admin token, every tenant token and every builder key. It now needs the admin token, and the secrets are replaced with `[redacted]`. `internal/server/server.go:80,96`\n\nFixes #2 and #11 change behaviour that clients can see:\n- **`tenant` field:** a request whose `tenant` value differs from its token's tenant now gets a `403` instead of being processed.\n- **`/debug/config`:** it now needs the admin token. The README doesn't say this endpoint is unauthenticated, so I treated the open access as a bug rather than part of the API.\n\nI didn't add new tests for these fixes; they're covered only by reading the code and the existing tests."
+}

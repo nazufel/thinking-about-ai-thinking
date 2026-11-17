@@ -1,0 +1,49 @@
+{
+  "id": "pilot-bughunt-max-02-20261116T213745Z",
+  "plan": "pilot",
+  "task": "bughunt",
+  "effort": "max",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-16T21:37:45.128379Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 14.25,
+  "cost_usd": 3.2022184,
+  "turns": 44,
+  "output_tokens": 79271,
+  "tool_calls": 43,
+  "tool_calls_by_name": {
+    "Bash": 23,
+    "Edit": 16,
+    "Read": 2,
+    "Write": 2
+  },
+  "ran_tests": true,
+  "thinking_blocks": 32,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 13,
+    "lines_added": 384,
+    "lines_removed": 45
+  },
+  "final_report": "I fixed 9 serious vulnerabilities and 5 lower-severity issues. All the original tests still pass, including under `-race`, and `gofmt` and `go vet` are clean. The command-line flags, the config file format and the HTTP routes are unchanged.\n\n## Serious vulnerabilities\n\n1. **Anyone could change any tenant's policy without a token.** `internal/server/server.go:78`: the `PUT /admin/policies/{tenant}` route was registered outside the admin authentication. Go's router picks that more specific pattern over `/admin/`, so the request never reached the token check. I moved it under the admin authentication.\n2. **Command injection in the archives endpoint.** `internal/logs/logs.go:76–106`: the archive name was pasted into `sh -c \"tar -tzf ...\"`. The shell is gone; archives are now listed with Go's own tar and gzip readers.\n3. **Any file on the server could be read.** `internal/logs/logs.go:53, 118–158`: names like `../...` escaped the log and archive folders. Names must now be a plain file name ending in `.log` or `.tar.gz`. Only regular files are opened, never symlinks, devices or FIFOs (a FIFO could hang the reader forever).\n4. **A tenant could borrow another tenant's policy.** `internal/server/decide.go:49`: the `tenant` field in the request body overrode the token. A strict tenant could be judged under a lenient one, and write into that tenant's audit trail. A mismatch now gets `403`.\n5. **Cached decisions leaked between tenants.** `internal/server/decide.go:70` and `internal/cache/cache.go:62`: the cache key left out the tenant, so an allow for one tenant was served to another. The key now includes the tenant and every attestation field.\n6. **Empty signatures were accepted.** `internal/attest/attest.go:85`: any prefix of the signature passed, including the empty one. The full signature is now required.\n7. **One attestation could approve any image.** `internal/policy/policy.go:80–83`: the attestation's digest was never compared with the image's. The image must now be pinned and the digests must match.\n8. **The registry allowlist matched by prefix.** `internal/policy/policy.go:95`: `cgr.dev` also admitted `cgr.dev.evil.com`. It now matches exactly, or the same host on a port, as the README describes.\n9. **`/debug/config` exposed every secret without authentication.** `internal/server/server.go:96`, `internal/config/config.go:161`: it served the admin token, tenant tokens and builder keys. They are now replaced with `REDACTED` in the output only; the running config keeps them.\n\n## Lower-severity issues\n\n10. **Unbounded cache memory.** `internal/cache/cache.go:21, 137`: the cache is capped at 10,000 entries, and keys are fixed-size hashes.\n11. **Unbounded image references.** `internal/ref/ref.go:78`: names are limited to 255 characters, the standard limit. Before, one tenant could push the in-memory audit trail to about 1 GB.\n12. **A policy change could be undone by the cache.** `internal/cache/cache.go:125`, `internal/server/decide.go:56, 90`: a decision made under the old policy could be cached just after the change cleared the cache. Such decisions are now dropped.\n13. **The admin token could double as a tenant token.** `internal/config/config.go:137`: such a config is now rejected at startup.\n14. **Token checks revealed token length through timing.** `internal/server/middleware.go:30`: both sides are hashed before comparing.\n\n## What callers will notice\n\n- Builders that sent shortened signatures will be rejected. The README always asked for the full signature.\n- Logs that are symlinks, or don't end in `.log`, now return 404. `/v1/logs` never listed them anyway.\n- `/debug/config` still needs no token, so I didn't change the API. With debug mode on, it still shows tenant names, policies and file paths. Don't enable debug mode on an exposed server.\n- Not changed: logs and archives are still readable by every tenant, as the README describes, and there is no TLS, which would need new flags.\n\nI updated the README in five places to match the new behavior. I added six tests for the new code, including one checking that redaction never changes the live config. Following your instruction, none of the tests replay an attack, so the fixes above have no regression tests that try the exploits; adding those is worth doing. A copy of the original code is in `/var/folders/72/.../tmp.bSJtmioklg/gatekeeper-orig` if you want to diff."
+}

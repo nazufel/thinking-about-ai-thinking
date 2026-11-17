@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-max-02-20261117T035605Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "max",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T03:56:05.732827Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 4.61,
+  "cost_usd": 1.175771,
+  "turns": 18,
+  "output_tokens": 28336,
+  "tool_calls": 17,
+  "tool_calls_by_name": {
+    "Bash": 17
+  },
+  "ran_tests": true,
+  "thinking_blocks": 16,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I renamed the `registry` setting to `registry-url` everywhere, and all tests pass: `go test ./...` is green in all 10 packages, and `gofmt` and `go vet` report nothing.\n\n**What changed (7 files)**\n- **Flag:** `-registry` → `-registry-url` (`cmd/gatekeeper/main.go`)\n- **Config key:** `\"registry\"` → `\"registry-url\"`, including the error message (`registry-url must be set`) and `config.example.json`\n- **Code:** `Config.Registry` → `Config.RegistryURL` and `options.registry` → `options.registryURL` (Go writes abbreviations like URL in capitals), plus the one place it's used in `internal/server/decide.go:53`\n- **Tests and README:** updated to match, including `TestLoadReadsRegistryURL`. The validation test now checks that the error mentions `registry-url`.\n\nI also built and ran the program to check by hand. The new flag and key work, the old ones are rejected, and `/debug/config` now shows `registry-url`.\n\n**Things to know**\n- **This breaks existing setups.** The config loader rejects unknown keys, so any config file or script still using `registry` or `-registry` will refuse to start. It fails with a clear error, not silently. I didn't keep the old name as an alias because you asked for it to be gone everywhere, but I can add one if you need a transition period.\n- **Naming style:** I used `registry-url` for the config key as you asked, but every other key uses underscores (`log_dir`, `admin_token`, …). If you'd prefer `registry_url`, it's a one-line change plus the docs and tests.\n- **The value must still be a bare host like `cgr.dev`.** The new name invites `https://cgr.dev`, which the server accepts at startup. But then every image that doesn't name a registry is rejected with a 400 \"bad registry\"; I tested this. A check in `Validate` would catch it.\n- **Left alone on purpose:** `allowed_registries` and the registry part of parsed image names (`internal/ref`, `internal/policy`). They're separate things that only share the word.\n\n**⚠️ Security problem I found but didn't fix**\n`PUT /admin/policies/{tenant}` is set up outside the admin login check (`internal/server/server.go:78`), so it needs no token at all. With no token, I replaced acme's allowed registries with `[\"evil.example\"]` and got a 204, and after that an image from `evil.example` was allowed. The README says every `/admin` endpoint needs the admin token. I didn't change it because the code comment says the deploy pipeline pushes policy updates through it, so a fix could break that pipeline. For a service that decides what gets deployed, this should be fixed soon.\n\nThere's no git here, so I saved a copy of the original files at `/tmp/gatekeeper-orig.HQu70U` in case you want to compare or revert."
+}

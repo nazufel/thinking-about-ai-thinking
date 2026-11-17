@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-low-02-20261117T040223Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "low",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:02:23.228489Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.47,
+  "cost_usd": 0.0825124,
+  "turns": 4,
+  "output_tokens": 1737,
+  "tool_calls": 3,
+  "tool_calls_by_name": {
+    "Bash": 3
+  },
+  "ran_tests": true,
+  "thinking_blocks": 1,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I renamed the setting to `registry-url` in every place you listed, and all tests pass (`go vet` and `go test ./...`).\n\n- **Flag:** `-registry` is now `-registry-url` in `cmd/gatekeeper/main.go`.\n- **Config key:** `\"registry\"` is now `\"registry-url\"` in the JSON tag, `config.example.json` and the test fixtures.\n- **Code:** `Config.Registry` is now `Config.RegistryURL`, and the internal `options.registry` is now `registryURL`. Its uses in `main.go` and `internal/server/decide.go` were updated to match. The validation error now says `registry-url must be set`.\n- **Tests and README:** both updated to the new names, including one test renamed to `TestLoadReadsRegistryURL`.\n\n**Not renamed on purpose:** `ref.Reference.Registry` and the `AllowedRegistries` policy code in `internal/ref` and `internal/policy`. They refer to the registry part of an image reference, not this setting.\n\n**Breaking change:** existing config files that use `\"registry\"` will no longer be read, and scripts that pass `-registry` will fail. There's no fallback for the old name. Since the setting is required and defaults to `cgr.dev`, an old config file would quietly fall back to `cgr.dev` instead of raising an error."
+}

@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-high-03-20261117T045220Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "high",
+  "trial": 3,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:52:20.778644Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.6,
+  "cost_usd": 0.1354278,
+  "turns": 4,
+  "output_tokens": 2815,
+  "tool_calls": 3,
+  "tool_calls_by_name": {
+    "Bash": 3
+  },
+  "ran_tests": true,
+  "thinking_blocks": 4,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "The `registry` setting is now called `registry-url` everywhere you listed, and `go vet` and `go test ./...` both pass.\n\nWhat changed:\n- **Flag:** `-registry` is now `-registry-url`, in `cmd/gatekeeper/main.go`. The internal field is now `registryURL`.\n- **Config key:** the JSON key is now `registry-url`. In code, `Config.Registry` became `Config.RegistryURL` in `internal/config/config.go`, and the place that reads it in `internal/server/decide.go` was updated. The error when it's missing now says `registry-url must be set`.\n- **Tests:** `cmd/gatekeeper/main_test.go` and `internal/config/config_test.go` now use the new flag, key and field. `TestLoadReadsRegistry` is now `TestLoadReadsRegistryURL`.\n- **Docs:** the README's flag table, config table and example were updated, and so was `config.example.json`.\n\nI left `ref.Reference.Registry`, the `defaultRegistry` parameter and the policy's `allowed_registries` alone. Those are the registry of a parsed image and the allowlist of registries, not this setting.\n\nThings to know:\n1. **Old configs will stop loading.** Unknown config keys are rejected, so any existing file that still says `\"registry\"` will fail with an error instead of being ignored. Anything that passes `-registry` will also fail. I didn't keep the old name working as an alias because you asked for a full rename. You may want to mention this in the release notes.\n2. **The key is spelled differently from the others.** You asked for `registry-url`, so I used it exactly. Every other config key uses underscores (`log_dir`, `cache_ttl_seconds`), so `registry_url` would match better. It's a one-line change in `config.go` plus the tests and docs if you'd prefer it.\n3. **The value isn't a URL.** It's still a bare host like `cgr.dev`, with no `https://`, and the image-name parser checks it against a host pattern. Someone who sees \"url\" in the name and writes `https://cgr.dev` will get a \"bad registry\" error when an image is resolved."
+}

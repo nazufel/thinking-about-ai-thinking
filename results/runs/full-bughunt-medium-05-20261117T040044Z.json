@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-medium-05-20261117T040044Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "medium",
+  "trial": 5,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:00:44.279954Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.6,
+  "cost_usd": 0.5417711999999999,
+  "turns": 11,
+  "output_tokens": 8154,
+  "tool_calls": 10,
+  "tool_calls_by_name": {
+    "Bash": 9,
+    "Read": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 6,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 142,
+    "lines_removed": 26
+  },
+  "final_report": "I found and fixed ten vulnerabilities. `go vet ./...` is clean and `go test ./...` passes in every package. The flags, the config file format and the HTTP routes and request/response shapes are unchanged. Two endpoints now need the admin token (items 3 and 4), and the `tenant` field in decide requests is now checked against the caller's token. I did not write or run any exploit code, and I added no new tests for these fixes.\n\n**Critical**\n\n1. **Anyone could replace a tenant's policy without logging in**: `PUT /admin/policies/{tenant}` was registered outside the admin-token check. It's now behind it with the other admin routes. `internal/server/server.go:77`\n2. **Shell command injection in `/v1/archives`**: the archive name was pasted into `sh -c \"tar -tzf ...\"`, so a crafted name could run commands on the server. It now reads the archive with Go's built-in `archive/tar` and `compress/gzip` and caps the number of entries. `internal/logs/logs.go:117`\n3. **Path traversal in `/v1/logs?name=` and `/v1/archives?name=`**: names like `../../etc/passwd` were joined straight onto the directory path. Both now accept only a plain file name with no slashes, no `..` and nothing absolute. They also refuse symlinks and anything that isn't a regular file, and logs must end in `.log`. `internal/logs/logs.go:55`, `:93`\n4. **`/debug/config` exposed every secret with no login**: it returned the admin token, all tenant tokens and all builder keys. It now needs the admin token and returns those values as `[redacted]`. `internal/server/server.go:81`, `:101`\n\n**High**\n\n5. **A tenant could act as another tenant**: the optional `tenant` field in `/v1/decide` overrode the token's tenant. That let a caller use another team's policy and write into their audit trail. The tenant now always comes from the token, and a `tenant` field that doesn't match gets a `403`. `internal/server/decide.go:49`\n6. **Cached decisions were shared between tenants**: the cache key didn't include the tenant, so an \"allow\" under one team's loose policy was then returned to a team with a strict policy. Keys now include the tenant, and each field is length-prefixed so different requests can't produce the same key. `internal/cache/cache.go:42`, `:54`; `internal/server/decide.go:64`\n7. **Short or empty attestation signatures were accepted**: only as many bytes as the caller sent were compared, so an empty signature passed and a one-byte one could be guessed. The full HMAC must now match. `internal/attest/attest.go:84`\n8. **An attestation for one image could approve another**: the attestation's digest was never compared with the image being deployed. A policy that requires attestations now also requires a pinned image whose digest matches the attestation. `internal/policy/policy.go:79`\n9. **The registry allowlist matched on prefix**: `cgr.dev` also let in `cgr.dev.evil.com`. It now needs an exact host match, or the same host with a port (`cgr.dev:443`), as the README describes. `internal/policy/policy.go:88`\n\n**Low**\n\n10. **Log reads could be swapped or grow mid-read**: the file was checked and then opened again by path, and its size was trusted. It's now opened once, confirmed to be the same file, and the read is capped at the size limit. `internal/logs/logs.go:93`\n\n**One issue I left alone:** a cached decision made with an attestation can stay valid up to `cache_ttl_seconds` (60 seconds by default) after the attestation expires. Fixing it would mean not caching attested decisions or shortening their cache time, and I didn't think that trade-off was mine to make without asking."
+}

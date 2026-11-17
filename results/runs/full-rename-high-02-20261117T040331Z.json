@@ -1,0 +1,44 @@
+{
+  "id": "full-rename-high-02-20261117T040331Z",
+  "plan": "full",
+  "task": "rename",
+  "effort": "high",
+  "trial": 2,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:03:31.033474Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "08e045ca4533",
+  "outcome": "completed",
+  "minutes": 0.69,
+  "cost_usd": 0.171201,
+  "turns": 6,
+  "output_tokens": 3132,
+  "tool_calls": 5,
+  "tool_calls_by_name": {
+    "Bash": 5
+  },
+  "ran_tests": true,
+  "thinking_blocks": 4,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "rename_correct": true,
+    "rename_checks": {
+      "default still applies": true,
+      "docs and example updated": true,
+      "new config key works": true,
+      "new flag works": true,
+      "nothing else broke": true,
+      "service's own tests pass": true
+    },
+    "old_name_rejected": true,
+    "files_changed": 7,
+    "lines_added": 32,
+    "lines_removed": 32
+  },
+  "final_report": "I renamed `registry` to `registry-url` everywhere it's the setting, and `go vet ./...` and `go test ./...` both pass.\n\n**What changed:**\n- **Flag:** `-registry` is now `-registry-url` (`cmd/gatekeeper/main.go`). The internal field `options.registry` is now `registryURL`.\n- **Config key:** `\"registry\"` is now `\"registry-url\"`, and the Go field `Config.Registry` is now `RegistryURL` (`internal/config/config.go`). The error when it's missing now reads `registry-url must be set`.\n- **Code:** the one place that uses the setting, `internal/server/decide.go`, now reads `s.cfg.RegistryURL`.\n- **Tests:** `cmd/gatekeeper/main_test.go` and `internal/config/config_test.go` use the new flag, key and field. `TestLoadReadsRegistry` is now `TestLoadReadsRegistryURL`.\n- **Docs and example:** the flags table, config table and example in `README.md`, plus `config.example.json`. A test loads the example file, so it's checked to work.\n\n**Left alone:** the word \"registry\" also appears in places that aren't this setting, so I didn't change them. That covers `ref.Reference.Registry` (the registry found in an image reference), the policy key `allowed_registries`, and the `registryAllowed` helper.\n\n**Two things to know:**\n1. **Old config files will stop loading.** The loader rejects keys it doesn't recognise, so any existing config that still says `\"registry\"` will now fail at startup with an \"unknown field\" error. Scripts that pass `-registry` will also fail. I didn't keep the old name working because you asked for a rename. If you need old files to keep working, the old key would need to be accepted as a fallback.\n2. **The new key's style doesn't match the others.** The other config keys use underscores (`log_dir`, `admin_token`), so `registry-url` stands out. I used the exact name you gave. If you'd prefer `registry_url` for the config key, that's a one-line change in the struct tag, plus the docs and tests."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-medium-01-20261117T053256Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "medium",
+  "trial": 1,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:32:56.553222Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.81,
+  "cost_usd": 0.620851,
+  "turns": 15,
+  "output_tokens": 9888,
+  "tool_calls": 14,
+  "tool_calls_by_name": {
+    "Bash": 13,
+    "Edit": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 9,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 193,
+    "lines_removed": 28
+  },
+  "final_report": "I found and fixed 12 vulnerabilities. `go vet ./...` is clean and `go test ./...` passes in every package. I fixed them by reading the code and did not write or run any exploit code. I didn't add new tests for these fixes, so each one is checked only by reading the code. The command-line flags, config format and HTTP routes are the same as before.\n\n**Critical**\n\n1. **`PUT /admin/policies/{tenant}` needed no login** – `internal/server/server.go:74`. The route was outside the admin token check, so anyone could rewrite any team's policy. It now sits with the other admin routes and needs the admin token.\n2. **Forged attestations were accepted** – `internal/attest/attest.go:84`. The service only compared as many signature bytes as the caller sent, so an empty or 1-byte signature passed. It now requires the full signature to match.\n3. **One team could use another team's policy** – `internal/server/decide.go:43-49`. The `tenant` field in the request body replaced the team identified by the token. The team now always comes from the token. A body `tenant` that doesn't match the token gets a `403`.\n4. **Shell command injection in `/v1/archives`** – `internal/logs/logs.go:122`. The archive name was passed into `sh -c \"tar -tzf \"+path`, so a crafted name could run commands. Archives are now read in Go with `archive/tar` and `gzip`, so no shell is involved. Archive size and entry count are also capped (`logs.go:19-22`).\n5. **Path traversal in `/v1/logs?name=` and `/v1/archives`** – `internal/logs/logs.go:27-63, 98`. Names like `../../etc/passwd` could read any file. Names must now be plain file names with the right extension (`.log` or `.tar.gz`). Symlinks and non-regular files are refused, and the opened file is checked again after it is opened.\n\n**High**\n\n6. **Cached decisions were shared between teams** – `internal/cache/cache.go:62`, `internal/server/decide.go:62`. The cache key didn't include the team, so one team's \"allow\" was returned to a team with a stricter policy. The new `TenantKey` includes the team.\n7. **Cache key didn't cover the whole attestation** – `internal/cache/cache.go` (`Key`). The key used only the builder and signature, so a request with a changed digest could get a cached \"allow\". The key now includes every attestation field, with length prefixes so fields can't run together. `Key` keeps its existing signature so the tests still compile.\n8. **Attestation wasn't tied to the image** – `internal/policy/policy.go:77-81`. A valid attestation for any digest approved any image. Its digest must now equal the image's digest, and the image must be pinned by digest.\n9. **Registry allowlist matched by prefix** – `internal/policy/policy.go:90`. `cgr.dev` also allowed `cgr.dev.evil.com`. Matching is now exact, plus the same host with a numeric port (`cgr.dev:443`), as the README describes.\n10. **`/debug/config` leaked secrets** – `internal/server/server.go:96`. It returned the admin token, every team token and every builder key. These are now replaced with `[redacted]`.\n\n**Medium**\n\n11. **Cached approvals could outlive the attestation** – `internal/server/decide.go:84`. Decisions that depend on an attestation are no longer cached, so an approval can't last past the attestation's expiry.\n12. **The cache could grow without limit** – `internal/cache/cache.go:100-108`. Expired entries were only removed when looked up again, so a client could fill memory. The cache is now capped at 10,000 entries; when full it drops expired entries and resets if it's still full.\n\n**Behaviour changes for callers**\n\n- A `tenant` in the body that doesn't match the token now gets a `403`. Before, it was silently used.\n- Teams that require attestations must now send images pinned by digest, and the digest must match the attestation.\n- Log names without `.log`, and names with path parts, now return `404`."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "full-bughunt-low-01-20261117T053447Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "low",
+  "trial": 1,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:34:47.887402Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 0.94,
+  "cost_usd": 0.3417984,
+  "turns": 6,
+  "output_tokens": 4430,
+  "tool_calls": 5,
+  "tool_calls_by_name": {
+    "Bash": 4,
+    "Read": 1
+  },
+  "ran_tests": true,
+  "thinking_blocks": 3,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 56,
+    "lines_removed": 15
+  },
+  "final_report": "I found and fixed 11 vulnerabilities. `go vet` is clean and all existing tests pass. Command-line flags, the config file format and HTTP routes are unchanged. As instructed, I didn't write or run any exploit code, so these fixes are checked by reading the code and running the existing tests only.\n\n1. **Admin endpoint had no login check**: `PUT /admin/policies/{tenant}` was registered outside the admin login check, so anyone could rewrite any tenant's policy. It now sits behind the admin token check with the other admin routes (`internal/server/server.go:72-76`).\n2. **One tenant could act as another**: `/v1/decide` trusted the `tenant` field in the request body over the caller's token, so a tenant could have its images judged under another tenant's policy. The tenant now always comes from the token, and a body value that doesn't match gets a 403 (`internal/server/decide.go:43-48`).\n3. **Cached decisions were shared between tenants**: the cache key didn't include the tenant, so an \"allow\" under one tenant's loose policy could be reused for another tenant. The key now starts with the tenant (`internal/server/decide.go:59`).\n4. **Cache key could be faked**: the key only used the builder and signature, joined in a way that two different attestations could produce the same key. It now includes every attestation field, each quoted (`internal/cache/cache.go:40-46`).\n5. **Command injection in the archives endpoint**: `/v1/archives` built a shell command from the `name` parameter (`sh -c \"tar -tzf \"+path`), letting a caller run any command on the server. It now calls `tar` directly with separate arguments. Names must be a plain file name that doesn't start with `-`, and the target must be a regular file, not a link (`internal/logs/logs.go:66-80`).\n6. **Path traversal in the logs endpoint**: `/v1/logs?name=../...` could read any file on the server. Names with `/`, `\\`, `..` or NUL are now rejected, and only regular files are served, not links (`internal/logs/logs.go:49-63`, helper `safeName` at the end of the file).\n7. **Registry allowlist was a prefix match**: allowing `cgr.dev` also allowed `cgr.dev.evil.com`. Matching is now exact, plus the same host with a port as the comment intended (`internal/policy/policy.go:85-97`).\n8. **Shortened signatures were accepted**: attestation checking compared only as many bytes as the caller sent, so a 1-byte or empty signature passed. It now requires the full signature (`internal/attest/attest.go:81-84`).\n9. **Attestation wasn't tied to the image**: a valid attestation for any image would satisfy `require_attestation` for a different one. The image must now be pinned by digest and the attestation's digest must match it (`internal/policy/policy.go:76-77`).\n10. **Debug endpoint leaked secrets**: `/debug/config` returned the admin token, tenant tokens and builder keys. They are now shown as `[redacted]` (`internal/server/server.go:92-104`).\n11. **Logs and archives could be read through links**: the switch from `Stat` to `Lstat` with a regular-file check, covered in items 5 and 6, also stops symlinks in the data directories from exposing files elsewhere.\n\nFixes 2, 8 and 9 make the service stricter, and may break clients that relied on the old behaviour:\n- Clients that send a `tenant` value that doesn't match their token now get a 403.\n- Builders that send shortened signatures are now rejected.\n- Tenants with `require_attestation` must now deploy images pinned by digest."
+}

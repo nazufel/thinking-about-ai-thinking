@@ -1,0 +1,168 @@
+{
+  "extras_list_hash": "1ce469a2416a",
+  "order": [
+    {
+      "task": "rename",
+      "effort": "max",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "medium",
+      "trial": 5
+    },
+    {
+      "task": "rename",
+      "effort": "low",
+      "trial": 2
+    },
+    {
+      "task": "rename",
+      "effort": "high",
+      "trial": 1
+    },
+    {
+      "task": "rename",
+      "effort": "high",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "medium",
+      "trial": 4
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 5
+    },
+    {
+      "task": "rename",
+      "effort": "low",
+      "trial": 1
+    },
+    {
+      "task": "rename",
+      "effort": "medium",
+      "trial": 1
+    },
+    {
+      "task": "rename",
+      "effort": "max",
+      "trial": 1
+    },
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 4
+    },
+    {
+      "task": "rename",
+      "effort": "max",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "medium",
+      "trial": 2
+    },
+    {
+      "task": "rename",
+      "effort": "medium",
+      "trial": 2
+    },
+    {
+      "task": "rename",
+      "effort": "high",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "high",
+      "trial": 4
+    },
+    {
+      "task": "rename",
+      "effort": "low",
+      "trial": 3
+    },
+    {
+      "task": "rename",
+      "effort": "medium",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "medium",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 5
+    },
+    {
+      "task": "bughunt",
+      "effort": "high",
+      "trial": 1
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 1
+    },
+    {
+      "task": "bughunt",
+      "effort": "medium",
+      "trial": 1
+    },
+    {
+      "task": "bughunt",
+      "effort": "low",
+      "trial": 1
+    },
+    {
+      "task": "bughunt",
+      "effort": "max",
+      "trial": 4
+    },
+    {
+      "task": "bughunt",
+      "effort": "high",
+      "trial": 2
+    },
+    {
+      "task": "bughunt",
+      "effort": "high",
+      "trial": 3
+    },
+    {
+      "task": "bughunt",
+      "effort": "high",
+      "trial": 5
+    }
+  ],
+  "plan": "full",
+  "seed": 1794887765720736000,
+  "started": "2026-11-17T03:56:05Z"
+}

@@ -1,0 +1,48 @@
+{
+  "id": "full-bughunt-max-04-20261117T053547Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "max",
+  "trial": 4,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:35:47.090627Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 17.39,
+  "cost_usd": 4.0053388000000005,
+  "turns": 45,
+  "output_tokens": 110537,
+  "tool_calls": 44,
+  "tool_calls_by_name": {
+    "Bash": 26,
+    "Edit": 16,
+    "Write": 2
+  },
+  "ran_tests": true,
+  "thinking_blocks": 25,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 19,
+    "lines_added": 826,
+    "lines_removed": 75
+  },
+  "final_report": "I found and fixed 9 critical vulnerabilities and 10 lower-severity ones. All original tests still pass, along with new regression tests for each fix, under `go test -race`, and `go vet` and `gofmt` are clean. The command-line flags, config file format and HTTP API (endpoints and request/response shapes) are unchanged. Line numbers below refer to the files as they are now.\n\n## Critical\n\n| # | Problem | Fix |\n|---|---|---|\n| 1 | **Command injection.** The archive name went into `sh -c \"tar -tzf \"+path`, so anyone with a tenant token could run commands on the server. | Archives are now read with Go's own `archive/tar` and `compress/gzip`; nothing goes to a shell. `internal/logs/logs.go:98-135` |\n| 2 | **Path traversal in logs and archives.** `name=../config.json` could read any file, including the config with every secret. | Only a plain file name directly inside the directory is accepted. Logs must also end in `.log`, matching what `List` shows. Symlinks, directories and special files are refused, and the file is checked again after it's opened in case it was swapped. `logs.go:79, 144-181` |\n| 3 | **`PUT /admin/policies/{tenant}` needed no authentication**, so anyone could rewrite any tenant's policy. | Moved behind the admin token check. `internal/server/server.go:76` |\n| 4 | **One tenant could act as another.** The `tenant` field in the request body overrode the token, so `bank` could have its images judged under `acme`'s looser policy. | The tenant always comes from the token. A body naming a different tenant gets `403`; older clients that send their own name still work. `internal/server/decide.go:46-52` |\n| 5 | **Cached decisions crossed tenants.** The cache key left out the tenant, so `acme`'s cached \"allow\" was served to `bank`. | Keys now include the tenant and every attestation field. `internal/cache/cache.go:58`, `decide.go:72` |\n| 6 | **Look-alike registries passed the allowlist.** It was a prefix match, so `cgr.dev` also admitted `cgr.dev.attacker.com`. | Exact host match. An entry still covers the same host with a port added, as the README says (`cgr.dev` admits `cgr.dev:443`). `internal/policy/policy.go:94-103` |\n| 7 | **Attestations could be forged.** Shortened signatures were accepted, including an empty one. | The full 32-byte signature is now required. `internal/attest/attest.go:84` |\n| 8 | **Attestations weren't tied to the image.** Any valid attestation approved any image. | The attestation's digest must equal the image's digest, and the image must be pinned by digest. `policy.go:78-81` |\n| 9 | **`/debug/config` was open to anyone** and showed the admin token, tenant tokens and builder keys. | Now needs the admin token, and secrets show as `REDACTED`. `server.go:83, 97`, `internal/config/config.go:167` |\n\n## Lower severity\n- **Cache could exhaust memory:** it had no size limit and keys could be up to 1 MB. It's now capped at 10,000 entries with fixed-size keys. `cache.go:21, 148`\n- **A policy change could be undone by a stale decision:** a request in flight during an update could cache a decision made under the old policy. A flush counter now prevents this. `cache.go:116`, `decide.go:58, 96`\n- **Cached approvals outlived their attestation:** an \"allow\" could be reused after the attestation expired. Cache entries now end when the attestation does. `attest.go:101`, `decide.go:86`\n- **Image references had no length limit,** which let one tenant bloat memory and the audit file. Names are now capped at 255 characters (Docker's limit) and must be ASCII. `internal/ref/ref.go:47, 54, 94`\n- **One tenant could wipe another's audit history:** all tenants shared one 1,000-entry buffer. Each tenant now has its own. `internal/audit/audit.go:58`\n- **Audit file write failures were silently ignored.** They're now logged. `audit.go:49`, `decide.go:115`\n- **A whole log was loaded into memory per request,** and a growing file could exceed the 5 MB limit. Logs are now streamed and capped at the size that was checked. `handlers.go:48`, `logs.go:69`\n- **Config accepted an admin token equal to a tenant token,** which would make that tenant an admin. Now rejected. `config.go:143`\n- **A negative `rate_limit_per_minute` silently turned rate limiting off.** Now rejected. `config.go:113`\n- **Unlimited caller-supplied strings went into log lines.** They're now cut to 64 characters. `decide.go:49, 89`\n\n## Behaviour changes to be aware of\n- **Builders that send shortened signatures will now be rejected.** A code comment said some do, but the README's signing steps describe the full signature.\n- **Policies that require an attestation now also require digest-pinned images.**\n- **Requests naming another tenant get `403`.** I chose an explicit error over silently ignoring the field.\n\nI updated the README to describe these rules.\n\n## Not fixed (they would need design or API changes)\n- **Build logs are shared:** every tenant can read every log, because logs have no owner.\n- **Short image names differ from Docker's default.** gatekeeper reads `chainguard/nginx` as coming from `cgr.dev`, while Docker reads it as `docker.io`. The deploy pipeline must deploy the `image` value gatekeeper returns, not the raw input.\n- **No TLS or brute-force protection:** the server speaks plain HTTP and doesn't slow down failed login attempts.\n- **The example config's placeholder tokens still pass validation,** because an existing test requires that file to be valid."
+}

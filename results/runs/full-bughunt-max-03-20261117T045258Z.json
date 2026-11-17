@@ -1,0 +1,48 @@
+{
+  "id": "full-bughunt-max-03-20261117T045258Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "max",
+  "trial": 3,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T04:52:58.735667Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 17,
+  "cost_usd": 3.9322136,
+  "turns": 62,
+  "output_tokens": 104293,
+  "tool_calls": 61,
+  "tool_calls_by_name": {
+    "Bash": 32,
+    "Edit": 19,
+    "Write": 10
+  },
+  "ran_tests": true,
+  "thinking_blocks": 43,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 19,
+    "lines_added": 1015,
+    "lines_removed": 68
+  },
+  "final_report": "I fixed 9 vulnerabilities and 9 lower-severity issues. The command-line flags, config file format and HTTP API are unchanged. `go vet` is clean, and all existing tests plus the new regression tests pass under `-race`. I also built the binary and checked it against a local config: an unauthenticated `PUT` now gets 401, `/debug/config` no longer shows secrets, and normal decisions still work.\n\n## Vulnerabilities\n\n1. **Anyone could replace any tenant's policy:** `internal/server/server.go:82`. `PUT /admin/policies/{tenant}` was registered outside the admin router, so it took priority over `/admin/` and never checked the admin token. It's now inside the admin router.\n2. **Shell command injection in archive listing:** `internal/logs/logs.go:90`. The archive name was passed into `sh -c \"tar -tzf \"+path`. The listing now uses Go's own tar and gzip readers and no longer starts a shell.\n3. **Path traversal in log reading:** `internal/logs/logs.go:68`, `:126`, `:158`. Any tenant could ask for `name=../config.json` and get the config file with every token and key. Now only a plain file name with the right suffix, sitting directly in the directory, is served. Symlinks are refused, including one swapped in between the check and the open, and reads are size-bounded. Archive names get the same checks.\n4. **Empty or shortened attestation signatures were accepted:** `internal/attest/attest.go:90`. Only as many bytes as the caller sent were compared, so `\"signature\": \"\"` passed for any builder. The full signature is now required.\n5. **Registry allowlist used prefix matching:** `internal/policy/policy.go:93`. `cgr.dev` also allowed `cgr.dev.attacker.com`. Now only the exact host, or that host with a port, matches.\n6. **An attestation wasn't tied to the image:** `internal/policy/policy.go:80-83`. One valid attestation approved any image. The image must now be pinned by digest, and that digest must match the attestation.\n7. **Tenant spoofing through the request body:** `internal/server/decide.go:49`. The `tenant` field in the body overrode the token's tenant. A caller could be judged by another tenant's looser policy and write into that tenant's audit trail. The token's tenant is now always used. A different `tenant` in the body is ignored and logged, so older clients that send their own name keep working.\n8. **Decisions cached across tenants:** `internal/cache/cache.go:52`, `:72`, `internal/server/decide.go:92`. The cache key left out the tenant, so one tenant's \"allow\" was served to a stricter tenant. The key now covers the tenant, the image and every attestation field.\n9. **`/debug/config` exposed every secret:** `internal/server/server.go:100`, `internal/config/config.go:166`. With debug on, an unauthenticated caller got the admin token, all tenant tokens and the builder signing keys. These are now redacted.\n\n## Hardening\n\n10. **Stale decisions after a policy update:** a decision in progress under the old policy could be cached just after the update cleared the cache (`decide.go:83`, `handlers.go:113`, `:123`).\n11. **Cache outliving attestations:** a cached allow could outlast the attestation's maximum age (`cache.go:103`, `attest.go:68`, `decide.go:110`).\n12. **Unbounded cache:** it's now capped at 10,000 entries with fixed-size keys (`cache.go:20`, `:125`).\n13. **Unbounded image references:** a reference of about 1 MiB was kept in memory and written to the audit file on every request. The limit is now 512 bytes; the longest valid reference is 456 (`internal/ref/ref.go:31`, `:41`).\n14. **Unicode in registry names:** some non-ASCII letters turned into ASCII when lowercased, so a different host could look like an allowed one. Only A–Z is lowercased now (`ref.go:67`, `:70`, `:91`).\n15. **Token length leaked through timing:** both sides are now hashed before the comparison (`internal/server/middleware.go:31`).\n16. **Config mistakes that weakened security:** a negative `rate_limit_per_minute` silently turned rate limiting off (`config.go:112`). A tenant token equal to `admin_token` gave that tenant admin access (`config.go:143`). Both now stop the server from starting.\n17. **Silent audit failures:** failed writes to the audit file were dropped. They're now returned and logged (`internal/audit/audit.go:50`, `decide.go:119`).\n18. **Log flooding:** untrusted paths and builder names are now shortened before logging (`middleware.go:100`, `decide.go:101`).\n19. **Content-type sniffing:** JSON responses now send `nosniff` (`handlers.go:132`).\n\n## Behaviour changes\n- **Attestations need a pinned image:** with `require_attestation` on, a tag-only image is now denied even when `require_digest` is off.\n- **Fewer files readable through logs:** `/v1/logs?name=` now only returns the regular `*.log` files that the list shows.\n- **New limits:** references over 512 bytes get a 400. Archive listing stops at 100,000 entries, 16 MiB of names or 4 GiB uncompressed.\n\n## Not fixed (these would need an API or config change)\n- **Debug endpoint:** `/debug/config` still needs no token, as the README documents. It still shows tenant names and policies, so keep debug off in production.\n- **Shared logs:** every tenant can read every build log, because nothing records who a log belongs to.\n- **Transport and brute force:** there's no TLS, and failed logins aren't rate-limited.\n- **Short image names:** pipelines need to deploy the `image` value the response returns. Short names are resolved against gatekeeper's `registry` setting, which may differ from the default registry of the system doing the deploy.\n\nThe regression tests are in new files: `security_test.go`, `names_test.go`, `signature_test.go`, `match_test.go`, `limits_test.go`, `scope_test.go`, `safety_test.go` and `write_test.go`. They check the secure behaviour using files in temporary directories, with no exploit payloads."
+}

@@ -1,0 +1,46 @@
+{
+  "id": "full-bughunt-low-05-20261117T051512Z",
+  "plan": "full",
+  "task": "bughunt",
+  "effort": "low",
+  "trial": 5,
+  "model": "claude-opus-5-5",
+  "tools": "Bash,Edit,Read,Write",
+  "started": "2026-11-17T05:15:12.715404Z",
+  "cli_version": "2.1.325 (Claude Code)",
+  "fixture_hash": "c9fd70d5ee4e",
+  "prompt_hash": "7523b69a65c1",
+  "outcome": "completed",
+  "minutes": 1.24,
+  "cost_usd": 0.38388019999999995,
+  "turns": 9,
+  "output_tokens": 6016,
+  "tool_calls": 8,
+  "tool_calls_by_name": {
+    "Bash": 8
+  },
+  "ran_tests": true,
+  "thinking_blocks": 4,
+  "permission_denials": 0,
+  "stop_reason": "end_turn",
+  "score": {
+    "build_ok": true,
+    "own_tests_pass": true,
+    "fixed": [
+      "S1",
+      "S2",
+      "S3",
+      "L1",
+      "L2",
+      "L3",
+      "X1",
+      "X2",
+      "X3"
+    ],
+    "total": 9,
+    "files_changed": 6,
+    "lines_added": 53,
+    "lines_removed": 16
+  },
+  "final_report": "I found and fixed 10 vulnerabilities, all by reading the code. `go vet` is clean and the existing tests pass. I didn't write exploit tests, so nothing checks that these attacks are now blocked. The command-line flags, config file format and HTTP API are unchanged.\n\n1. **Anyone could change any tenant's policy** (`internal/server/server.go:76`): `PUT /admin/policies/{tenant}` was registered outside the admin-token check, so no login was needed. It now sits behind the admin token like the other admin routes.\n2. **A tenant could get decisions under another tenant's policy** (`internal/server/decide.go:43-49`): the `tenant` field in the request body overrode the tenant tied to the token. Now the token's tenant is always used. Older clients can still send the field, but if it names a different tenant the request gets a 403.\n3. **Tenants shared cached decisions** (`internal/server/decide.go:62`): the cache key didn't include the tenant, so one tenant's \"allow\" could be served to another tenant with stricter rules. The key now includes the tenant.\n4. **Short or empty signatures passed** (`internal/attest/attest.go:82`): attestation checks compared only as many bytes as the caller sent, so an empty signature always passed. The full HMAC must now match, compared in constant time.\n5. **An attestation could vouch for any image** (`internal/policy/policy.go:77-78`): nothing tied the attestation's digest to the image being deployed. When a policy requires attestation, the image must now be pinned by digest and that digest must match the attestation's.\n6. **The registry allowlist was bypassable** (`internal/policy/policy.go:89-90`): it was a plain prefix match, so `cgr.dev.evil.com` passed an entry for `cgr.dev`. It now needs an exact match, or the same host plus a port (`cgr.dev:443` still works).\n7. **Log reads could escape the log directory** (`internal/logs/logs.go:50-58`): names like `../../etc/passwd` were joined straight into a path. Names must now be plain `.log` file names, and symlinks and non-regular files are refused.\n8. **Command injection in the archive endpoint** (`internal/logs/logs.go:70-81`): the archive name was pasted into a `sh -c` command. `tar` now runs directly with the path as a separate argument, the name goes through the same check as log names (which also blocks a leading `-`), and symlinks and non-regular files are refused.\n9. **The debug endpoint leaked every secret and needed no login** (`internal/server/server.go:80`, `91-104`): `/debug/config` returned the admin token, all tenant tokens and all builder keys to anyone. It now requires the admin token and replaces those values with `[redacted]`.\n10. **Cache entries could be confused between attestations** (`internal/cache/cache.go:43`): the key used only the builder and signature. It now includes the digest and issue time too, with each field quoted so values can't run into each other. This is extra protection on top of fix 3.\n\nSome of these will change behaviour for existing callers:\n- **Debug endpoint:** it now needs the admin token.\n- **Signatures:** builders that send shortened signatures will now be rejected.\n- **Attestation policies:** tenants that require attestation must deploy digest-pinned images.\n- **Tenant field:** clients that send a different tenant's name now get a 403 instead of a decision."
+}
